@@ -219,7 +219,8 @@ DECOMPOSITION_PROMPT_TEMPLATE = [
     conditional_recent_messages_show,
     conditional_user_latest_query,
     static_part(
-        "Structure your output using the following JSON format:\n"
-        "{'response': []} where the list contains all sub queries"
+        """Structure your output using the following JSON format:
+        {"response": []} 
+        where the list contains all sub queries"""
     ),
 ]

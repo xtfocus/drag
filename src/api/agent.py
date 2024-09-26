@@ -223,20 +223,19 @@ class Planner:
             formatted_context = context.friendly_chunk_view()
             self.context_reviewer.set_data({"formatted_context": formatted_context})
             chunk_review_str = await self.context_reviewer.run()
+            context.integrate_chunk_review_data(chunk_review_str)
 
             # Format review result as a string
-            context.integrate_chunk_review_data(chunk_review_str)
             logger.info(f"CHUNK_REVIEW_STR:\n{chunk_review_str}")
+            chunk_review_data = context.chunk_review
 
-            if len(context.chunk_review) == 0:
-                chunk_review_data = []
+            if len(chunk_review_data) == 0:
                 self.response_generator.set_data({"chunk_review": EMPTY_CHUNK_REVIEW})
-                response = await self.response_generator.generate_response()
             else:
-                chunk_review_data = context.chunk_review
                 self.response_generator.set_data(
                     {"chunk_review": context.friendly_chunk_review_view()}
                 )
-                response = await self.response_generator.generate_response()
+
+            response = await self.response_generator.generate_response()
 
         return response, json.dumps(chunk_review_data)

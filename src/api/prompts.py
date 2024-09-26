@@ -1,0 +1,225 @@
+"""
+File        : prompts.py
+Author      : tungnx23
+Description : Reusable prompt parts and templates
+"""
+
+from .dynamic_prompt_tools import conditional_part, static_part
+
+EMPTY_CHUNK_REVIEW = (
+    "Current documents provide insufficient information to answer user's query.\n"
+)
+
+REFUSE = """You must gracefully tell user that you are "unable to help with the query due to insufficient knowledge base on the topic". Then ask user if there's something else you can assist them with."""
+
+SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
+
+FOLLOWUP_PROMPT = "\nFinally, provide a leading question: ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
+REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
+
+instruction_show = (
+    lambda data: f"You are an assistant from the Subaru company. You help users find answers to questions about mainly work-related topics. This is your ultimate instruction: {data.get('system_prompt')}\n"
+)
+
+
+condition_chunk_review_not_empty = lambda data: bool(
+    data["chunk_review"] != EMPTY_CHUNK_REVIEW
+)
+
+condition_current_summary_exist = lambda data: bool(
+    len(data.get("current_summary", "").strip()) > 0
+)
+condition_recent_messages_exist = lambda data: bool(data.get("history_text"))
+
+
+conditional_summary_introduce = conditional_part(
+    condition=condition_current_summary_exist,
+    true_part="the summary of the conversation so far, and ",
+    false_part="",
+)
+conditional_recent_messages_introduce = conditional_part(
+    condition=condition_recent_messages_exist,
+    true_part="recent messages and ",
+    false_part="",
+)
+
+conditional_summary_show = conditional_part(
+    condition=condition_current_summary_exist,
+    true_part=lambda data: f"Summary of the conversation so far: {data.get('current_summary')}\n",
+    false_part="",
+)
+conditional_recent_messages_show = conditional_part(
+    condition=condition_recent_messages_exist,
+    true_part=lambda data: f"Recent messages:\n{data.get('history_text')}\n",
+    false_part="",
+)
+
+user_latest_query = static_part(
+    lambda data: f"User's latest query: {data.get('augmented_query', data.get('query'))}\n",
+)
+
+condition_user_latest_query_exist = lambda data: bool(
+    len(data.get("augmented_query", data.get("query")).strip()) > 0
+)
+
+conditional_user_latest_query = conditional_part(
+    condition=condition_user_latest_query_exist,
+    true_part=user_latest_query,
+    false_part="",
+)
+
+AUGMENT_QUERY_PROMPT_TEMPLATE = [
+    static_part("An assistant and a user is having a conversation.\n"),
+    static_part("You will be provided with "),
+    conditional_summary_introduce,
+    conditional_recent_messages_introduce,
+    static_part("a follow-up query from the user. "),
+    static_part(
+        "Rephrase the follow-up query to be a standalone "
+        "query that clearly reflects the user's intent, "
+        "incorporating relevant context from the conversation.\n"
+    ),
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    lambda data: f"Follow-up query: {data.get('query')}\n",
+    static_part("Standalone query:"),
+]
+
+
+REVIEW_CHUNKS_PROMPT_TEMPLATE = [
+    static_part(
+        "You are an information evaluator. Given a user's query "
+        "from a conversation between the user and an assistant, "
+        "your objective is to select only information chunks "
+        "that directly contribute to answering the given query.\n"
+        "You are provided with several information chunks which might "
+        "or might not contain some usable information. Usable "
+        "information is defined as one that share the same scope and "
+        "precisely answers one or more aspects of the query. Evaluate "
+        "each information chunk by answering the questions: Does the "
+        "chunk contain any usable information? If yes, it should be "
+        "selected. Otherwise, it should be excluded."
+    ),
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    user_latest_query,
+    static_part(
+        lambda data: f"Following are information chunks for you to review: \n{data.get('formatted_context')}\n"
+    ),
+    static_part(
+        """Structure your output using the following JSON format.
+        {{
+        "relevant_info": [
+                {{
+                    "info_no": 1, # Numbering of the information
+                    "review_detail": <Your brief review> 
+                    "review_score": 1, # where 0 means exclusion, 1 means selection
+                }},
+                {{
+                    "info_no": 2,
+                    .... # and so on
+                }}
+            ]
+        }}
+        If all chunks are irrelevant, simply return {{'relevant_info': []}} 
+        """
+    ),
+]
+
+chunk_review_introduce = static_part(
+    lambda data: "An expert has analyzed available information related to the query. "
+    + f"They reviewed possible relevant information pieces as follows:\n{data['chunk_review']}"
+)
+
+SEARCH_ANSWER_PROMPT_TEMPLATE = [
+    instruction_show,
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    user_latest_query,
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part=chunk_review_introduce,
+        false_part="",
+    ),
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
+        "Avoid including additional or tangent information unless explicitly "
+        "asked by the user. If the user’s query involves clarification or follow-up "
+        "questions, offer additional details.\n",
+        false_part=REFUSE,
+    ),
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part=SUMMARIZE_ANSWER,
+        false_part="",
+    ),
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part=static_part(FOLLOWUP_PROMPT),
+        false_part=static_part(REDIRECT_PROMPT),
+    ),
+]
+
+DIRECT_ANSWER_PROMPT_TEMPLATE = [
+    instruction_show,
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    conditional_user_latest_query,
+    static_part("Provide the user with a final answer. Be concise and direct."),
+    static_part(
+        "If the user's question is about company policies or regulation, ask if the user want you to do a document search to answer the question."
+    ),
+]
+
+QUERY_ANALYZER_TEMPLATE = [
+    static_part(
+        "You are a query analyzer. You will be provided with information of a conversation between a user and an assistant."
+    ),
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    conditional_user_latest_query,
+    static_part(
+        """Evaluate the query by determining whether the following conditions are True or False
+c1: The user explicitly requests a search (keywords: search, find out, look up, etc.).
+c2: The query is about company policies or procedures or other regulation topics.
+c3: The query is beyond common knowledge.
+c4: You are unsure of the answer
+Structure your output using the following JSON format:
+        {{"c1": <boolean evaluation for c1>, "c2": ...}} # 
+"""
+    ),
+]
+
+SUMMARIZE_PROMPT_TEMPLATE = [
+    static_part("You are a conversation summarizer.\n"),
+    static_part("An assistant and a user are having a conversation. Following is "),
+    conditional_summary_introduce,
+    conditional_recent_messages_introduce,
+    static_part(
+        "Your task is to update the summary of the conversation to maintain the general theme with a moderate amount of details.\n"
+    ),
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    static_part("Updated summary:\n"),
+]
+
+
+DECOMPOSITION_PROMPT_TEMPLATE = [
+    static_part(
+        "You are an expert at decomposing user queries into distinct sub queries "
+        "that you need to answer in order to answer the original query. "
+        "If the original query is already simple, do not decompose it, just return the query itself."
+        "If there are acronyms or words you are not familiar with, do not try to rephrase them."
+    ),
+    static_part("An assistant and a user are having a conversation. Following is "),
+    conditional_summary_introduce,
+    conditional_recent_messages_introduce,
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    conditional_user_latest_query,
+    static_part(
+        "Structure your output using the following JSON format:\n"
+        "{'response': []} where the list contains all sub queries"
+    ),
+]

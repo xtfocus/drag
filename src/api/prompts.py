@@ -55,12 +55,10 @@ conditional_recent_messages_show = conditional_part(
 )
 
 user_latest_query = static_part(
-    lambda data: f"User's latest query: {data.get('augmented_query', data.get('query'))}\n",
+    lambda data: f"User's latest query: {data['query']}\n",
 )
 
-condition_user_latest_query_exist = lambda data: bool(
-    len(data.get("augmented_query", data.get("query")).strip()) > 0
-)
+condition_user_latest_query_exist = lambda data: bool(len(data["query"]) > 0)
 
 conditional_user_latest_query = conditional_part(
     condition=condition_user_latest_query_exist,
@@ -103,6 +101,7 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
     conditional_summary_show,
     conditional_recent_messages_show,
     user_latest_query,
+    conditional_user_latest_query,
     static_part(
         lambda data: f"Following are information chunks for you to review: \n{data.get('formatted_context')}\n"
     ),
@@ -202,6 +201,16 @@ SUMMARIZE_PROMPT_TEMPLATE = [
     conditional_summary_show,
     conditional_recent_messages_show,
     static_part("Updated summary:\n"),
+]
+
+COMPOSITION_PROMPT_TEMPLATE = [
+    static_part(
+        lambda data: f"You are a helpful assistant that can answer complex queries. Here is the original question you were asked: {data['query']}"
+    ),
+    static_part(
+        lambda data: f"You have split this question up into simpler questions that can be answered in isolation. Here are the questions and answers that you've generated: {data['formatted-sub-qa-pairs']}"
+    ),
+    static_part("Provide the final answer to the original query"),
 ]
 
 

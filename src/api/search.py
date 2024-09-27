@@ -13,7 +13,7 @@ from .initialize_indexing import index_name
 from .models import SemanticSearchArgs
 
 
-def get_similar_chunks(
+def azure_cognitive_search_wrapper(
     query: str,
     k: int,
     top_n: int,

@@ -14,43 +14,75 @@ from .azure_semantic_search import default_semantic_args
 from .dynamic_prompt_tools import create_prompt
 from .llm import LLM
 from .models import Message
+from .prompt_data import PromptData
 from .prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
                       DECOMPOSITION_PROMPT_TEMPLATE,
                       DIRECT_ANSWER_PROMPT_TEMPLATE, EMPTY_CHUNK_REVIEW,
                       QUERY_ANALYZER_TEMPLATE, REVIEW_CHUNKS_PROMPT_TEMPLATE,
                       SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE)
-from .search import get_similar_chunks
+from .search import azure_cognitive_search_wrapper
 from .utils import Chunks, history_to_text
 
 
 class BaseAgent:
-    def __init__(self, llm: LLM, stream: bool = False):
+    """
+    Base Agent class to orchestrate llm, prompt template, and prompt data
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: PromptData,
+        template: Any = None,
+        stream: bool = False,
+    ):
         self.llm = llm
-        self.data = {}
-        self.stream = stream  # Store the stream argument for LLM invocation
+        self.data = prompt_data  # Shareable PromptData instance
+        self.stream = stream
+        self._prompt: Optional[str] = None
+        self._template = template
 
-    def set_data(self, new_data: dict):
+    @property
+    def prompt(self) -> Optional[str]:
         """
-        Update the agent's data dictionary with the provided new data.
+        Instruction given to the Agent
         """
-        if not isinstance(new_data, dict):
-            raise ValueError("new_data must be a dictionary")
-        self.data.update(new_data)
+        return self._prompt
 
-    async def invoke_llm(
-        self, template: Any, response_format: Optional[Dict] = None
-    ) -> str:
-        """
-        Generate a prompt from the data and invoke the LLM.
-        """
-        prompt = create_prompt(self.data, template)
-        logger.info(f"PROMPT:\n{prompt}")
-        messages = [Message(content=prompt, role="system")]
+    @prompt.setter
+    def prompt(self, value: str):
+        self._prompt = value
 
-        # Pass the stream argument to the invoke method
-        return await self.llm.invoke(
-            messages, response_format=response_format, stream=self.stream
-        )
+    @property
+    def template(self) -> Any:
+        """
+        Prompt Template given to the agent
+        """
+        return self._template
+
+    @template.setter
+    def template(self, value: Any):
+        self._template = value
+
+    async def run(self, *args, **kwargs) -> str:
+        """
+        Generate a prompt from the prompt data and invoke the LLM.
+        """
+        self.prompt = create_prompt(self.data.__dict__, self.template)
+        messages = [Message(content=self.prompt, role="system")]
+
+        response = await self.llm.invoke(messages, stream=self.stream, *args, **kwargs)
+
+        # Log the prompt and LLM output
+        self.log(response)
+
+        return response
+
+    def log(self, response: str):
+        delimiter = "\n" + "_" * 20 + "\n"
+        logger.info(delimiter + f"AGENT: {self.__class__.__name__}")
+        logger.info(f"INPUT:\n{self.prompt}")
+        logger.info(f"OUTPUT:\n{response}" + delimiter)
 
 
 class QueryRephraser(BaseAgent):
@@ -58,18 +90,9 @@ class QueryRephraser(BaseAgent):
     LLM instance to improve user's query for more accurate query analysis.
     """
 
-    async def run(self) -> str:
-        return await self.invoke_llm(AUGMENT_QUERY_PROMPT_TEMPLATE)
-
-
-class ContextReviewer(BaseAgent):
-    """
-    LLM instance to review chunks' usefulness.
-    """
-
-    async def run(self) -> str:
-        return await self.invoke_llm(
-            REVIEW_CHUNKS_PROMPT_TEMPLATE, response_format={"type": "json_object"}
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(
+            llm, prompt_data, template=AUGMENT_QUERY_PROMPT_TEMPLATE, stream=stream
         )
 
 
@@ -78,8 +101,10 @@ class Summarizer(BaseAgent):
     Summarizes chat history.
     """
 
-    async def run(self) -> str:
-        return await self.invoke_llm(SUMMARIZE_PROMPT_TEMPLATE)
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(
+            llm, prompt_data, template=SUMMARIZE_PROMPT_TEMPLATE, stream=stream
+        )
 
 
 class QueryAnalyzer(BaseAgent):
@@ -87,20 +112,15 @@ class QueryAnalyzer(BaseAgent):
     Analyzes (rephrased) user query using predefined criteria.
     """
 
-    async def run(self) -> str:
-        analyzer_output = await self.invoke_llm(
-            QUERY_ANALYZER_TEMPLATE, response_format={"type": "json_object"}
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(
+            llm, prompt_data, template=QUERY_ANALYZER_TEMPLATE, stream=stream
         )
-        logger.info(f"Analyzer output: {analyzer_output}")
 
-        logger.info("json loads in analyzer")
+    async def run(self) -> str:
+        analyzer_output = await super().run(response_format={"type": "json_object"})
         analyzer_output_parsed = json.loads(analyzer_output)
-        logger.info("end json loads in analyzer")
-
-        if any(analyzer_output_parsed.values()):
-            return "search"
-        else:
-            return "answer"
+        return "search" if any(analyzer_output_parsed.values()) else "answer"
 
 
 class ResponseGenerator(BaseAgent):
@@ -108,15 +128,20 @@ class ResponseGenerator(BaseAgent):
     Synthesize intelligent response based on search result or direct answer.
     """
 
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(llm, prompt_data, template=None, stream=stream)
+
     def set_generate_config(self, config_dict: Dict):
         logger.info(f"Generate config: {config_dict}")
         self._generate_config = config_dict
 
     async def direct_answer(self) -> str:
-        return await self.invoke_llm(DIRECT_ANSWER_PROMPT_TEMPLATE)
+        self.template = DIRECT_ANSWER_PROMPT_TEMPLATE
+        return await self.run(**self._generate_config)
 
     async def generate_response(self) -> str:
-        return await self.invoke_llm(SEARCH_ANSWER_PROMPT_TEMPLATE)
+        self.template = SEARCH_ANSWER_PROMPT_TEMPLATE
+        return await self.run(**self._generate_config)
 
 
 class QueryDecompositor(BaseAgent):
@@ -124,14 +149,16 @@ class QueryDecompositor(BaseAgent):
     Decomposes a query into simpler ones, or returns the original query if simple enough.
     """
 
-    async def run(self) -> List:
-        decomposition_output = await self.invoke_llm(
-            DECOMPOSITION_PROMPT_TEMPLATE, response_format={"type": "json_object"}
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(
+            llm, prompt_data, template=DECOMPOSITION_PROMPT_TEMPLATE, stream=stream
         )
-        logger.info("json loads in decomposition")
+
+    async def run(self) -> List:
+        decomposition_output = await super().run(
+            response_format={"type": "json_object"}
+        )
         result = json.loads(decomposition_output)["response"]
-        logger.info("end json loads in decomposition")
-        logger.info(f"DECOMPOSITION OUTPUT:\n{result}")
         return result
 
 
@@ -143,15 +170,29 @@ class ContextRetriever:
     def set_search_config(self, search_config: Dict):
         self._search_config = search_config
 
-    def get_chunks(self, query: str) -> List:
+    def run(self, query: str) -> List:
         return list(
-            get_similar_chunks(
+            azure_cognitive_search_wrapper(
                 query=query,
                 search_text=query,
                 semantic_args=default_semantic_args,
                 **self._search_config,
             )
         )
+
+
+class ContextReviewer(BaseAgent):
+    """
+    LLM instance to review chunks' usefulness.
+    """
+
+    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+        super().__init__(
+            llm, prompt_data, template=REVIEW_CHUNKS_PROMPT_TEMPLATE, stream=stream
+        )
+
+    async def run(self) -> str:
+        return await super().run(response_format={"type": "json_object"})
 
 
 class Planner:
@@ -161,12 +202,16 @@ class Planner:
 
     def __init__(self, client: AsyncAzureOpenAI, stream: bool = False):
         llm = LLM(client=client)
-        self.query_augmentor = QueryRephraser(llm=llm)
+        self.prompt_data = PromptData(query="")
+
+        # Pass shared PromptData instance to all agents
+        self.query_augmentor = QueryRephraser(llm=llm, prompt_data=self.prompt_data)
         self.context_retriever = ContextRetriever()
-        self.context_reviewer = ContextReviewer(llm=llm)
-        self.decision_maker = QueryAnalyzer(llm=llm)
-        self.response_generator = ResponseGenerator(llm=llm, stream=stream)
-        self.decomposer = QueryDecompositor(llm=llm)
+        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=self.prompt_data)
+        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=self.prompt_data)
+        self.response_generator = ResponseGenerator(
+            llm=llm, prompt_data=self.prompt_data, stream=stream
+        )
         self.stream = stream
 
     def set_generate_config(self, config_dict: Dict):
@@ -182,46 +227,39 @@ class Planner:
         current_summary: Optional[str] = None,
         system_prompt: Optional[str] = None,
     ):
-        prompt_data = {
-            "current_summary": current_summary,
-            "history_text": history_to_text(history),
-            "system_prompt": system_prompt,
-            "query": query,
-        }
-        self.query_augmentor.set_data(prompt_data)
-        self.decomposer.set_data(prompt_data)
-        self.context_reviewer.set_data(prompt_data)
-        self.decision_maker.set_data(prompt_data)
-        self.response_generator.set_data(prompt_data)
+        self.prompt_data.update(
+            {
+                "query": query,
+                "history_text": history_to_text(history),
+                "current_summary": current_summary,
+                "system_prompt": system_prompt,
+            }
+        )
         self.query = query
 
     async def run(self):
-        """
-        Generate a final answer to the user's query by either direct answer or retrieval-augmented generation (RAG).
-        """
         augmented_query = await self.query_augmentor.run()
-        decomposition_output = await self.decomposer.run()
 
-        self.decision_maker.set_data({"query": augmented_query})
+        self.prompt_data.update({"query": augmented_query})  # Update prompt data
+
         decision = await self.decision_maker.run()
-
         logger.info(f"DECISION = '{decision}'")
-
         if decision == "answer":
             response = await self.response_generator.direct_answer()
             chunk_review_data = []
         else:
 
             # Retrieve chunks
-            context = Chunks(self.context_retriever.get_chunks(augmented_query))
+            context = Chunks(self.context_retriever.run(augmented_query))
             logger.info(
-                f"SEARCH found {len(context.get_chunks())} chunks"
-                + "\n".join(context.get_chunk_ids())
+                f"SEARCH found {len(context.chunks)} chunks"
+                + "\n".join(context.chunk_ids)
             )
 
             # Review chunks
-            formatted_context = context.friendly_chunk_view()
-            self.context_reviewer.set_data({"formatted_context": formatted_context})
+            self.prompt_data.update(
+                {"formatted_context": context.friendly_chunk_view()}
+            )
             chunk_review_str = await self.context_reviewer.run()
             context.integrate_chunk_review_data(chunk_review_str)
 
@@ -230,9 +268,9 @@ class Planner:
             chunk_review_data = context.chunk_review
 
             if len(chunk_review_data) == 0:
-                self.response_generator.set_data({"chunk_review": EMPTY_CHUNK_REVIEW})
+                self.prompt_data.update({"chunk_review": EMPTY_CHUNK_REVIEW})
             else:
-                self.response_generator.set_data(
+                self.prompt_data.update(
                     {"chunk_review": context.friendly_chunk_review_view()}
                 )
 

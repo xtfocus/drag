@@ -5,7 +5,7 @@ Description : string formatting methods to help with prompting
 """
 
 import json
-from typing import Any, List
+from typing import Any, Dict, List
 
 from loguru import logger
 
@@ -39,12 +39,37 @@ class Chunks:
             self._chunks = chunks
         else:
             self._chunks = []
+        self._chunk_review = []
 
-    def get_chunks(self):
+    @property
+    def chunks(self):
+        """
+        Get the list of chunks.
+
+        Returns:
+            List[Dict[str, Any]]: List of chunks.
+        """
         return self._chunks
 
-    def get_chunk_ids(self):
-        return [i["chunk_id"] for i in self._chunks]
+    @property
+    def chunk_ids(self) -> List[Any]:
+        """
+        Get the list of chunk IDs from the chunks.
+
+        Returns:
+            List[Any]: List of chunk IDs.
+        """
+        return [chunk["chunk_id"] for chunk in self.chunks]
+
+    @property
+    def chunk_review(self) -> List[Dict[str, Any]]:
+        """Get the chunk review data."""
+        return self._chunk_review
+
+    @chunk_review.setter
+    def chunk_review(self, value: List[Dict[str, Any]]) -> None:
+        """Set the chunk review data."""
+        self._chunk_review = value
 
     def integrate_chunk_review_data(self, chunk_review: str):
         """
@@ -77,11 +102,11 @@ class Chunks:
 
         for c in result:
             true_index = c["info_no"] - 1  # Normalize numbering back to 0-indexed
-            c["chunk_id"] = self._chunks[true_index]["chunk_id"]
-            c["chunk"] = self._chunks[true_index]["chunk"]
-            c["title"] = self._chunks[true_index]["title"]
+            c["chunk_id"] = self.chunks[true_index]["chunk_id"]
+            c["chunk"] = self.chunks[true_index]["chunk"]
+            c["title"] = self.chunks[true_index]["title"]
             c["highlight"] = [
-                i.text for i in self._chunks[true_index]["@search.captions"]
+                i.text for i in self.chunks[true_index]["@search.captions"]
             ]
 
         # Drop irrelevant chunks
@@ -100,5 +125,5 @@ class Chunks:
         """
         return [
             {"info_no": i + 1, "content": v["chunk"]}
-            for i, v in enumerate(self._chunks)  # Numbering starts from 1
+            for i, v in enumerate(self.chunks)  # Numbering starts from 1
         ]

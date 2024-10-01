@@ -14,14 +14,15 @@ from .azure_semantic_search import default_semantic_args
 from .dynamic_prompt_tools import create_prompt
 from .llm import LLM
 from .models import Message
-from .prompt_data import PromptData
+from .prompt_data import ConversationalRAGPromptData, ResearchPromptData
 from .prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
-                      DECOMPOSITION_PROMPT_TEMPLATE,
-                      DIRECT_ANSWER_PROMPT_TEMPLATE, EMPTY_CHUNK_REVIEW,
-                      QUERY_ANALYZER_TEMPLATE, REVIEW_CHUNKS_PROMPT_TEMPLATE,
+                      DIRECT_ANSWER_PROMPT_TEMPLATE, QUERY_ANALYZER_TEMPLATE,
+                      RESEARCH_ANSWER_PROMPT_TEMPLATE,
+                      RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE,
+                      REVIEW_CHUNKS_PROMPT_TEMPLATE,
                       SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE)
 from .search import azure_cognitive_search_wrapper
-from .utils import Chunks, history_to_text
+from .utils import Chunks
 
 
 class BaseAgent:
@@ -32,15 +33,21 @@ class BaseAgent:
     def __init__(
         self,
         llm: LLM,
-        prompt_data: PromptData,
+        prompt_data: Any = None,
         template: Any = None,
         stream: bool = False,
+        generate_config: Any = None,
     ):
         self.llm = llm
-        self.data = prompt_data  # Shareable PromptData instance
+        self.data = prompt_data  # Shareable BasePromptData instance
         self.stream = stream
         self._prompt: Optional[str] = None
         self._template = template
+        self._generate_config = generate_config or dict()
+
+    @property
+    def generate_config(self):
+        return self._generate_config
 
     @property
     def prompt(self) -> Optional[str]:
@@ -71,7 +78,11 @@ class BaseAgent:
         self.prompt = create_prompt(self.data.__dict__, self.template)
         messages = [Message(content=self.prompt, role="system")]
 
-        response = await self.llm.invoke(messages, stream=self.stream, *args, **kwargs)
+        self.generate_config.update(kwargs)
+
+        response = await self.llm.invoke(
+            messages, stream=self.stream, *args, **self._generate_config
+        )
 
         # Log the prompt and LLM output
         self.log(response)
@@ -85,23 +96,14 @@ class BaseAgent:
         logger.info(f"OUTPUT:\n{response}" + delimiter)
 
 
-class QueryRephraser(BaseAgent):
-    """
-    LLM instance to improve user's query for more accurate query analysis.
-    """
-
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
-        super().__init__(
-            llm, prompt_data, template=AUGMENT_QUERY_PROMPT_TEMPLATE, stream=stream
-        )
-
-
 class Summarizer(BaseAgent):
     """
     Summarizes chat history.
     """
 
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+    def __init__(
+        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+    ):
         super().__init__(
             llm, prompt_data, template=SUMMARIZE_PROMPT_TEMPLATE, stream=stream
         )
@@ -112,7 +114,9 @@ class QueryAnalyzer(BaseAgent):
     Analyzes (rephrased) user query using predefined criteria.
     """
 
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+    def __init__(
+        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+    ):
         super().__init__(
             llm, prompt_data, template=QUERY_ANALYZER_TEMPLATE, stream=stream
         )
@@ -125,41 +129,61 @@ class QueryAnalyzer(BaseAgent):
 
 class ResponseGenerator(BaseAgent):
     """
-    Synthesize intelligent response based on search result or direct answer.
+    Synthesize intelligent assistant response based on search result or direct answer.
     """
 
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
-        super().__init__(llm, prompt_data, template=None, stream=stream)
-
-    def set_generate_config(self, config_dict: Dict):
-        logger.info(f"Generate config: {config_dict}")
-        self._generate_config = config_dict
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: ConversationalRAGPromptData,
+        stream: bool = False,
+        generate_config=dict(),
+    ):
+        super().__init__(
+            llm,
+            prompt_data,
+            template=None,
+            stream=stream,
+            generate_config=generate_config,
+        )
 
     async def direct_answer(self) -> str:
         self.template = DIRECT_ANSWER_PROMPT_TEMPLATE
-        return await self.run(**self._generate_config)
+        return await self.run()
 
     async def generate_response(self) -> str:
         self.template = SEARCH_ANSWER_PROMPT_TEMPLATE
+        return await self.run()
+
+
+class ResearchResponseGenerator(BaseAgent):
+    """
+    Synthesize intelligent research response based on search result or direct answer.
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: ResearchPromptData,
+        stream: bool,
+        generate_config: Dict,
+    ):
+        super().__init__(
+            llm, prompt_data, stream=stream, generate_config=generate_config
+        )
+
+    async def direct_answer(self) -> str:
+        self.template = RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE
         return await self.run(**self._generate_config)
 
+    def context_found(self):
+        return bool(self.data.chunk_review)
 
-class QueryDecompositor(BaseAgent):
-    """
-    Decomposes a query into simpler ones, or returns the original query if simple enough.
-    """
-
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
-        super().__init__(
-            llm, prompt_data, template=DECOMPOSITION_PROMPT_TEMPLATE, stream=stream
-        )
-
-    async def run(self) -> List:
-        decomposition_output = await super().run(
-            response_format={"type": "json_object"}
-        )
-        result = json.loads(decomposition_output)["response"]
-        return result
+    async def generate_response(self) -> str:
+        if not self.context_found():
+            return "No available information"
+        self.template = RESEARCH_ANSWER_PROMPT_TEMPLATE
+        return await self.run(**self._generate_config)
 
 
 class ContextRetriever:
@@ -167,7 +191,15 @@ class ContextRetriever:
     Context Search (Currently Azure Search).
     """
 
-    def set_search_config(self, search_config: Dict):
+    def __init__(self, search_config: Dict = {}):
+        self.search_config = search_config
+
+    @property
+    def search_config(self):
+        return self._search_config
+
+    @search_config.setter
+    def search_config(self, search_config: Dict):
         self._search_config = search_config
 
     def run(self, query: str) -> List:
@@ -186,7 +218,9 @@ class ContextReviewer(BaseAgent):
     LLM instance to review chunks' usefulness.
     """
 
-    def __init__(self, llm: LLM, prompt_data: PromptData, stream: bool = False):
+    def __init__(
+        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+    ):
         super().__init__(
             llm, prompt_data, template=REVIEW_CHUNKS_PROMPT_TEMPLATE, stream=stream
         )
@@ -200,80 +234,121 @@ class Planner:
     Orchestrator that uses multiple specialized modules to produce final intelligent answer.
     """
 
-    def __init__(self, client: AsyncAzureOpenAI, stream: bool = False):
+    def __init__(
+        self,
+        client: AsyncAzureOpenAI,
+        stream: bool,
+        generate_config: Dict,
+        search_config: Dict,
+        prompt_data: ConversationalRAGPromptData,
+    ):
         llm = LLM(client=client)
-        self.prompt_data = PromptData(query="")
+        self.prompt_data = prompt_data
 
-        # Pass shared PromptData instance to all agents
-        self.query_augmentor = QueryRephraser(llm=llm, prompt_data=self.prompt_data)
-        self.context_retriever = ContextRetriever()
-        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=self.prompt_data)
-        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=self.prompt_data)
+        self.query_augmentor = BaseAgent(
+            llm=llm,
+            prompt_data=self.prompt_data,
+            template=AUGMENT_QUERY_PROMPT_TEMPLATE,
+        )
+
+        self.single_query_processor = SingleQueryProcessor(
+            llm=llm, prompt_data=self.prompt_data, search_config=search_config
+        )
+
         self.response_generator = ResponseGenerator(
-            llm=llm, prompt_data=self.prompt_data, stream=stream
+            llm=llm,
+            prompt_data=self.prompt_data,
+            stream=stream,
+            generate_config=generate_config,
         )
         self.stream = stream
 
-    def set_generate_config(self, config_dict: Dict):
-        self.response_generator.set_generate_config(config_dict)
-
-    def set_search_config(self, config_dict: Dict):
-        self.context_retriever.set_search_config(config_dict)
-
-    def set_history(
-        self,
-        query: str,
-        history: Optional[List[Message]] = None,
-        current_summary: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-    ):
-        self.prompt_data.update(
-            {
-                "query": query,
-                "history_text": history_to_text(history),
-                "current_summary": current_summary,
-                "system_prompt": system_prompt,
-            }
-        )
-        self.query = query
-
     async def run(self):
         augmented_query = await self.query_augmentor.run()
-
         self.prompt_data.update({"query": augmented_query})  # Update prompt data
 
-        decision = await self.decision_maker.run()
-        logger.info(f"DECISION = '{decision}'")
+        decision, chunk_review_data = await self.single_query_processor.process()
+
         if decision == "answer":
             response = await self.response_generator.direct_answer()
-            chunk_review_data = []
         else:
-
-            # Retrieve chunks
-            context = Chunks(self.context_retriever.run(augmented_query))
-            logger.info(
-                f"SEARCH found {len(context.chunks)} chunks"
-                + "\n".join(context.chunk_ids)
-            )
-
-            # Review chunks
-            self.prompt_data.update(
-                {"formatted_context": context.friendly_chunk_view()}
-            )
-            chunk_review_str = await self.context_reviewer.run()
-            context.integrate_chunk_review_data(chunk_review_str)
-
-            # Format review result as a string
-            logger.info(f"CHUNK_REVIEW_STR:\n{chunk_review_str}")
-            chunk_review_data = context.chunk_review
-
-            if len(chunk_review_data) == 0:
-                self.prompt_data.update({"chunk_review": EMPTY_CHUNK_REVIEW})
-            else:
-                self.prompt_data.update(
-                    {"chunk_review": context.friendly_chunk_review_view()}
-                )
-
             response = await self.response_generator.generate_response()
 
-        return response, json.dumps(chunk_review_data)
+        return response, chunk_review_data
+
+
+class SingleQueryProcessor:
+    """
+    Processes a single query from decision making to context retrieval and review.
+    """
+
+    def __init__(self, llm: LLM, prompt_data: Any, search_config: Dict):
+        self.llm = llm
+        self.prompt_data = prompt_data
+        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
+        self.context_retriever = ContextRetriever(search_config=search_config)
+        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+
+    async def process(self) -> tuple:
+        decision = await self.decision_maker.run()
+        logger.info(f"DECISION = '{decision}'")
+
+        if decision == "answer":
+            return decision, []
+
+        # Retrieve chunks
+        context = Chunks(self.context_retriever.run(self.prompt_data.query))
+        logger.info(
+            f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
+        )
+
+        # Review chunks
+        self.prompt_data.update({"formatted_context": context.friendly_chunk_view()})
+        chunk_review_str = await self.context_reviewer.run()
+        context.integrate_chunk_review_data(chunk_review_str)
+
+        # Format review result as a string
+        logger.info(f"CHUNK_REVIEW_STR:\n{chunk_review_str}")
+        chunk_review_data = context.chunk_review
+
+        self.prompt_data.update({"chunk_review": context.friendly_chunk_review_view()})
+
+        return decision, json.dumps(chunk_review_data)
+
+
+class SingleQueryResearcher:
+    """
+    Orchestrator that uses multiple specialized modules to produce final researcher answer on a single query.
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: ResearchPromptData,
+        stream: bool,
+        generate_config: Dict,
+        search_config: Dict,
+    ):
+        self.llm = llm
+        self.prompt_data = prompt_data
+
+        self.query_processor = SingleQueryProcessor(
+            llm=llm, prompt_data=self.prompt_data, search_config=search_config
+        )
+        self.response_generator = ResearchResponseGenerator(
+            llm=llm,
+            prompt_data=self.prompt_data,
+            stream=stream,
+            generate_config=generate_config,
+        )
+        self.stream = stream
+
+    async def run(self):
+        decision, chunk_review_data = await self.query_processor.process()
+
+        if decision == "answer":
+            response = await self.response_generator.direct_answer()
+        else:
+            response = await self.response_generator.generate_response()
+
+        return response, chunk_review_data

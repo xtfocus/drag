@@ -55,6 +55,7 @@ class LLM:
             str: The response content from the LLM.
         """
         response_format = response_format or self.response_format
+
         response = await self.client.chat.completions.create(
             model=self.model_name,
             messages=[msg.model_dump() for msg in messages],
@@ -62,6 +63,7 @@ class LLM:
             response_format=response_format,
             **kwargs,
         )
+
         if stream:
             return response
         else:

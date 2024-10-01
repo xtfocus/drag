@@ -22,13 +22,9 @@ instruction_show = (
 )
 
 
-condition_chunk_review_not_empty = lambda data: bool(
-    data["chunk_review"] != EMPTY_CHUNK_REVIEW
-)
+condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
 
-condition_current_summary_exist = lambda data: bool(
-    len(data.get("current_summary", "").strip()) > 0
-)
+condition_current_summary_exist = lambda data: bool(data.get("current_summary"))
 condition_recent_messages_exist = lambda data: bool(data.get("history_text"))
 
 
@@ -160,6 +156,32 @@ SEARCH_ANSWER_PROMPT_TEMPLATE = [
     ),
 ]
 
+RESEARCH_ANSWER_PROMPT_TEMPLATE = [
+    user_latest_query,
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part=chunk_review_introduce,
+        false_part="",
+    ),
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
+        "Avoid including additional or tangent information unless explicitly asked by the user.\n",
+        false_part="",
+    ),
+    conditional_part(
+        condition=condition_chunk_review_not_empty,
+        true_part=SUMMARIZE_ANSWER,
+        false_part="",
+    ),
+]
+
+RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE = [
+    conditional_user_latest_query,
+    static_part("Provide the user with a final answer. Be concise and direct."),
+]
+
+
 DIRECT_ANSWER_PROMPT_TEMPLATE = [
     instruction_show,
     conditional_summary_show,
@@ -231,5 +253,32 @@ DECOMPOSITION_PROMPT_TEMPLATE = [
         """Structure your output using the following JSON format:
         {"response": []} 
         where the list contains all sub queries"""
+    ),
+]
+
+condition_subtask_results_exist = lambda data: bool(data.get("subtasks_results"))
+
+TASK_PROMPT_TEMPLATE = [
+    static_part(lambda data: f"Main task: {data['task_description']}\n"),
+    conditional_part(
+        condition_subtask_results_exist,
+        lambda data: f"Subtasks and results: {data['subtasks_results']}\n",
+    ),
+    conditional_part(
+        condition_subtask_results_exist,
+        "Based on the above information, Provide a concise response to the main task.",
+        "Provide a concise and direct response to the main task.",
+    ),
+]
+
+TASK_REPHRASE_TEMPLATE = [
+    static_part(
+        "You are a world class expert at rephrasing the description of a main task "
+        "based on results from its subtasks. If the description of the main task"
+        " is already informative enough, simple repeat it.\n"
+    ),
+    conditional_part(
+        condition_subtask_results_exist,
+        lambda data: f"Main task: {data['task_description']}\nSubtasks and results: {data['subtasks_results']}",
     ),
 ]

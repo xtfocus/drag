@@ -5,6 +5,7 @@ Description : Implements API endpoints for chat functionality
 """
 
 import json
+from os import system
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -14,6 +15,7 @@ from .agent import Planner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
 from .llm import LLM
 from .models import ChatRequest, SummaryRequest
+from .prompt_data import ConversationalRAGPromptData
 
 router = APIRouter()
 
@@ -23,23 +25,29 @@ async def chat_template(chat_request: ChatRequest, stream: bool = False) -> dict
     """
     Handle a chat request with customized template
     """
-    planner = ResponseGenerator(LLM(client=clients["chat-completion"]), stream=stream)
+    generate_config = chat_request.generate_config.model_dump()
 
     history = chat_request.messages[:-1]
     history = history[-history_config["hard_buffer_limit"] :]
 
     user_input = chat_request.messages[-1]
 
-    planner.set_generate_config(chat_request.generate_config.model_dump())
-
-    planner.set_history(
+    prompt_data = ConversationalRAGPromptData.from_chat_request(
+        query=user_input.content,
         history=history,
-        current_summary="",
         system_prompt=chat_request.system_prompt,
     )
 
+    planner = ResponseGenerator(
+        LLM(client=clients["chat-completion"]),
+        stream=stream,
+        prompt_data=prompt_data,
+        generate_config=generate_config,
+    )
+    # planner.set_generate_config(generate_config)
+
     if not stream:
-        ai_message = await planner.direct_answer(augmented_query=user_input.content)
+        ai_message = await planner.direct_answer()
         return {"message": ai_message}
     else:
 
@@ -47,7 +55,7 @@ async def chat_template(chat_request: ChatRequest, stream: bool = False) -> dict
             """
             Generator function for streaming
             """
-            ai_message = await planner.direct_answer(augmented_query=user_input.content)
+            ai_message = await planner.direct_answer()
             # Stream the response content
             async for event in ai_message:
                 if event.choices:
@@ -75,8 +83,6 @@ async def chat(chat_request: ChatRequest) -> dict:
         dict: A dictionary containing the model's response.
     """
 
-    planner = Planner(client=clients["chat-completion"], stream=False)
-
     try:
         user_input = chat_request.messages[-1]
 
@@ -86,16 +92,23 @@ async def chat(chat_request: ChatRequest) -> dict:
         history = chat_request.messages[:-1]
         history = history[-history_config["hard_buffer_limit"] :]
 
-        # Setting config
-        planner.set_search_config(chat_request.search_config.model_dump())
-        planner.set_generate_config(chat_request.generate_config.model_dump())
-
-        planner.set_history(
-            user_input.content,
-            history,
-            chat_request.summary.content,
-            chat_request.system_prompt,
+        generate_config = chat_request.generate_config.model_dump()
+        search_config = chat_request.search_config.model_dump()
+        prompt_data = ConversationalRAGPromptData.from_chat_request(
+            query=user_input.content,
+            history=history,
+            current_summary=chat_request.summary.content,
+            system_prompt=chat_request.system_prompt,
         )
+
+        planner = Planner(
+            client=clients["chat-completion"],
+            stream=False,
+            generate_config=generate_config,
+            search_config=search_config,
+            prompt_data=prompt_data,
+        )
+        # Setting config
         ai_message, chunk_review = await planner.run()
 
         return {"message": ai_message, "chunk_review": chunk_review}
@@ -117,8 +130,6 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
         dict: A dictionary containing the model's response.
     """
 
-    planner = Planner(client=clients["chat-completion"], stream=True)
-
     try:
         user_input = chat_request.messages[-1]
 
@@ -127,15 +138,22 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
 
         history = chat_request.messages[:-1]
         history = history[-history_config["hard_buffer_limit"] :]
-        # Setting config
-        planner.set_search_config(chat_request.search_config.model_dump())
-        planner.set_generate_config(chat_request.generate_config.model_dump())
 
-        planner.set_history(
-            user_input.content,
-            history,
-            chat_request.summary.content,
-            chat_request.system_prompt,
+        generate_config = chat_request.generate_config.model_dump()
+        search_config = chat_request.search_config.model_dump()
+        prompt_data = ConversationalRAGPromptData.from_chat_request(
+            query=user_input.content,
+            history=history,
+            current_summary=chat_request.summary.content,
+            system_prompt=chat_request.system_prompt,
+        )
+
+        planner = Planner(
+            client=clients["chat-completion"],
+            stream=True,
+            generate_config=generate_config,
+            search_config=search_config,
+            prompt_data=prompt_data,
         )
 
         async def event_generator():
@@ -178,8 +196,6 @@ async def summarize(summary_request: SummaryRequest) -> dict:
     Returns:
         dict: A dictionary containing the model's response.
     """
-
-    summarizer = Summarizer(client=clients["chat-completion"], stream=False)
     history = summary_request.history.messages
     truncated = summary_request.history.truncated
 
@@ -187,11 +203,14 @@ async def summarize(summary_request: SummaryRequest) -> dict:
         # If history is provided as full, truncate here
         history = history[summary_request.summary.offset :]
 
+    prompt_data = ConversationalRAGPromptData.from_chat_request(
+        query="", history=history, current_summary=summary_request.summary.content
+    )
+    summarizer = Summarizer(
+        llm=LLM(clients["chat-completion"]), stream=False, prompt_data=prompt_data
+    )
+
     try:
-        summarizer.set_history(
-            history,
-            summary_request.summary.content,
-        )
         ai_message = await summarizer.run()
 
         return {"content": ai_message}

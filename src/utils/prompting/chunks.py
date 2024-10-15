@@ -1,30 +1,7 @@
-"""
-File        : utils.py
-Author      : tungnx23
-Description : string formatting methods to help with prompting
-"""
-
 import json
 from typing import Any, Dict, List
 
 from loguru import logger
-
-from .models import Message
-
-
-def history_to_text(history: List[Message] | None) -> str:
-    """
-    Format list of Message objects into conversation_text
-
-    role1: content 1
-    role2: content 2
-    role1: content 3
-
-    and so on
-    """
-    if not history:
-        return ""
-    return "\n".join([f"{msg.role}: {msg.content}" for msg in history]).strip()
 
 
 class Chunks:

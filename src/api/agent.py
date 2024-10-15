@@ -10,19 +10,21 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 from openai import AsyncAzureOpenAI
 
-from .azure_semantic_search import default_semantic_args
-from .dynamic_prompt_tools import create_prompt
-from .llm import LLM
-from .models import Message
-from .prompt_data import ConversationalRAGPromptData, ResearchPromptData
-from .prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
-                      DIRECT_ANSWER_PROMPT_TEMPLATE, QUERY_ANALYZER_TEMPLATE,
-                      RESEARCH_ANSWER_PROMPT_TEMPLATE,
-                      RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE,
-                      REVIEW_CHUNKS_PROMPT_TEMPLATE,
-                      SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE)
+from src.utils.azure_tools.azure_semantic_search import default_semantic_args
+from src.utils.core_models.models import Message
+from src.utils.language_models.llms import LLM
+from src.utils.prompting.chunks import Chunks
+from src.utils.prompting.prompt_data import (ConversationalRAGPromptData,
+                                             ResearchPromptData)
+from src.utils.prompting.prompt_parts import create_prompt
+from src.utils.prompting.prompts import (
+    AUGMENT_QUERY_PROMPT_TEMPLATE, DIRECT_ANSWER_PROMPT_TEMPLATE,
+    QUERY_ANALYZER_TEMPLATE, RESEARCH_ANSWER_PROMPT_TEMPLATE,
+    RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE, REVIEW_CHUNKS_PROMPT_TEMPLATE,
+    SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE,
+    TASK_REPHRASE_TEMPLATE)
+
 from .search import azure_cognitive_search_wrapper
-from .utils import Chunks
 
 
 class BaseAgent:
@@ -352,3 +354,30 @@ class SingleQueryResearcher:
             response = await self.response_generator.generate_response()
 
         return response, chunk_review_data
+
+
+class RephraseResearchPipeline:
+    def __init__(self, llm, prompt_data, generate_config, search_config):
+        self.prompt_data = prompt_data
+        self.rephrase_agent = BaseAgent(
+            llm=llm,
+            prompt_data=self.prompt_data,
+            template=TASK_REPHRASE_TEMPLATE,
+            generate_config=generate_config,
+        )
+        self.research_agent = SingleQueryResearcher(
+            llm=llm,
+            prompt_data=self.prompt_data,
+            stream=False,
+            generate_config=generate_config,
+            search_config=search_config,
+        )
+
+    async def run(self):
+        if not self.rephrase_agent.data.subtasks_results:
+            query = self.rephrase_agent.data.task_description
+        else:
+            query = await self.rephrase_agent.run()
+        self.prompt_data.update({"query": query})
+        answer = self.research_agent.run()
+        return await answer

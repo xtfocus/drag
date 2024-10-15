@@ -1,4 +1,7 @@
 # TODO
-- [ ] Current date time and other things in prompt (see Claude guide on this)
+- [ ] `src.utils` should not copy from `src.api`. Modify the code (copying from api to utils. also create modules inside utils)
 - [ ] Use the decomposer. Create a composer as well
-- [ ] What are the decomposition's disadvantages: There are cases when subquestion 1 has to be answered first for subquestion 2 to be answered
+- [ ] Give the planner better instruction on how to adapt plan on the fly
+
+
+It seems that the latest model server 4o is busy af. The older one is faster and doesn't give connection erro

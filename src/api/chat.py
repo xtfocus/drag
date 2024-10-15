@@ -11,11 +11,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
+from src.utils.core_models.models import ChatRequest, SummaryRequest
+from src.utils.language_models.llms import LLM
+from src.utils.prompting.prompt_data import ConversationalRAGPromptData
+
 from .agent import Planner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
-from .llm import LLM
-from .models import ChatRequest, SummaryRequest
-from .prompt_data import ConversationalRAGPromptData
 
 router = APIRouter()
 

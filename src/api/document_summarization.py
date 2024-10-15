@@ -9,7 +9,7 @@ from io import BytesIO
 import PyPDF2
 from azure.storage.blob import BlobServiceClient
 
-from .azure_blob_service import blob_service_client
+from src.utils.azure_tools.azure_blob_service import blob_service_client
 
 
 def read_pdf_file(

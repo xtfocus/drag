@@ -6,12 +6,12 @@ Description: Pydantic models of task, task result, plan
 
 import asyncio
 from collections.abc import Generator
-from typing import Any, List
+from typing import Dict
 
-from loguru import logger
 from pydantic import BaseModel, Field
 
-from src.api.prompt_data import BasePromptData
+from src.api.agent import RephraseResearchPipeline
+from src.api.prompt_data import BasePromptData, RephraseResearchPromptData
 
 
 class TaskResult(BaseModel):
@@ -43,33 +43,13 @@ class Task(BaseModel):
         Dependencies must only be other tasks.""",
     )
 
-    def attach_agent(self, agent):
-        """
-        Set a workload agent or a pipeline to execute task.
-        The workload agent must have run method
-        """
-        try:
-            assert callable(getattr(obj, "run"))
-        except (AssertionError, AttributeError) as e:
-            message = "Agent must have a `run` method"
-            logger.error(message)
-            raise
-
-        self.agent = agent
-
-    async def aexecute(self, subtasks_results: TaskResults) -> TaskResult:
+    async def aexecute(self, agent) -> TaskResult:
         """
         Executes the task by asking the question and returning the answer.
         """
-        if not self.agent:
-            message = "Must attach task to an agent first"
-            logger.error(message)
-            raise
-
-        self.agent.promp_data = {"subtasks_results": subtasks_results}
 
         try:
-            response = await asyncio.to_thread(self.agent.run)
+            response = await asyncio.to_thread(agent.run)
             result = await response
             result = result[0]  # get the answer only, for now
             # Future: create an object to hold both immediate answer and chunks
@@ -93,6 +73,22 @@ class TaskPlan(BaseModel):
         ...,
         description="List of tasks and subtasks that need to be done to complete the main task. Consists of the main task and its dependencies.",
     )
+
+    @property
+    def search_config(self) -> Dict:
+        return self._search_config
+
+    @search_config.setter
+    def search_config(self, value: Dict) -> None:
+        self._search_config = value
+
+    @property
+    def generate_config(self) -> Dict:
+        return self._generate_config
+
+    @generate_config.setter
+    def generate_config(self, value: Dict) -> None:
+        self._generate_config = value
 
     def attach_llm(self, llm):
         self._llm = llm
@@ -163,7 +159,23 @@ class TaskPlan(BaseModel):
                 task_results_obj = TaskResults(results=subtasks_results)
 
                 # Create the coroutine and add it to the list
-                coroutine = q.aexecute(subtasks_results=task_results_obj)
+                simple_results = {
+                    r.task_description: r.result for r in task_results_obj.results
+                }
+                prompt_data = RephraseResearchPromptData(
+                    query=q.task_description,
+                    task_description=q.task_description,
+                    subtasks_results=simple_results,
+                )
+
+                research_pipe = RephraseResearchPipeline(
+                    self._llm,
+                    prompt_data,
+                    search_config={"k": 3, "top_n": 5},
+                    generate_config={"max_tokens": 100},
+                )
+
+                coroutine = q.aexecute(research_pipe)
                 coroutines.append(coroutine)
 
             # Execute all coroutines concurrently

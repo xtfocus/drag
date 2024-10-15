@@ -13,7 +13,7 @@ from azure.search.documents.indexes.models import (SemanticConfiguration,
 from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
                                            QueryType)
 
-from .models import SemanticSearchArgs
+from src.utils.core_models.models import SemanticSearchArgs
 
 semantic_configuration_name = os.getenv(
     "SEMANTIC_CONFIGURATION_NAME", "my-semantic-config"

@@ -4,7 +4,7 @@ Author      : tungnx23
 Description : Reusable prompt parts and templates
 """
 
-from .dynamic_prompt_tools import conditional_part, static_part
+from src.utils.prompting.prompt_parts import conditional_part, static_part
 
 EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
@@ -18,9 +18,8 @@ FOLLOWUP_PROMPT = "\nFinally, provide a leading question: ask if user had other 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
 instruction_show = (
-    lambda data: f"You are an assistant from the Subaru company. You help users find answers to questions about mainly work-related topics. This is your ultimate instruction: {data.get('system_prompt')}\n"
+    lambda data: f"You are an assistant from the Subaru company. You help users find answers to questions about labor regulation and procedures topics. This is your ultimate instruction: {data.get('system_prompt')}\n"
 )
-
 
 condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
 
@@ -191,6 +190,7 @@ DIRECT_ANSWER_PROMPT_TEMPLATE = [
     static_part(
         "If the user's question is about company policies or regulation, ask if the user want you to do a document search to answer the question."
     ),
+    static_part(FOLLOWUP_PROMPT),
 ]
 
 QUERY_ANALYZER_TEMPLATE = [

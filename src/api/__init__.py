@@ -5,6 +5,7 @@ Description : Define lifespan variables used by app
 """
 
 import contextlib
+import logging
 import os
 
 import azure.identity.aio
@@ -86,6 +87,7 @@ def create_app():
 
     if not os.getenv("RUNNING_IN_PRODUCTION"):
         env.read_env(".env")
+        logging.basicConfig(level=logging.INFO)
 
     app = fastapi.FastAPI(docs_url="/", lifespan=lifespan)
 

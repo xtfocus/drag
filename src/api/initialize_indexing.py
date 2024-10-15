@@ -8,13 +8,18 @@ import os
 
 from loguru import logger
 
-from .azure_ac_storage import document_data_source, summary_data_source
-from .azure_index import create_new_index, delete_index, index_client
-from .azure_indexer import create_new_indexer, indexer_client
-from .azure_semantic_search import semantic_search as chunk_semantic_search
-from .azure_skills import define_skillset
-from .azure_vector_search import vector_search as chunk_vector_search
-from .fields import fields as chunk_fields
+from src.utils.azure_tools.azure_ac_storage import (document_data_source,
+                                                    summary_data_source)
+from src.utils.azure_tools.azure_index import (create_new_index, delete_index,
+                                               index_client)
+from src.utils.azure_tools.azure_indexer import (create_new_indexer,
+                                                 indexer_client)
+from src.utils.azure_tools.azure_semantic_search import \
+    semantic_search as chunk_semantic_search
+from src.utils.azure_tools.azure_skills import define_skillset
+from src.utils.azure_tools.azure_vector_search import \
+    vector_search as chunk_vector_search
+from src.utils.azure_tools.fields import fields as chunk_fields
 
 prefix = os.getenv("ENVIRONMENT")
 index_name = f"{prefix}-index"

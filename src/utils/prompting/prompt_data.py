@@ -1,15 +1,15 @@
 """
 File        : prompt_data.py
 Author      : tungnx23
-Description : Define BasePromptData class to work with prompt templates defined in prompts.py 
+Description : Define BasePromptData and sub-classes to work with different prompt templates defined in prompts.py 
 """
 
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from .models import Message
-from .utils import history_to_text
+from src.utils.core_models.models import Message
+from src.utils.prompting.prompt_parts import history_to_text
 
 
 class BasePromptData(BaseModel):
@@ -33,6 +33,18 @@ class ResearchPromptData(BasePromptData):
 
     query: str
     system_prompt: Optional[str] = None
+    formatted_context: Optional[str] = None
+    chunk_review: Optional[str] = None
+
+
+class RephraseResearchPromptData(BasePromptData):
+    """
+    Specialized PromptData used in the Query Planning frame work
+    """
+
+    query: str  # holder for the rephrases task description
+    task_description: Optional[str] = None  # The original task description
+    subtasks_results: Optional[Dict] = None  # result of the subtask result
     formatted_context: Optional[str] = None
     chunk_review: Optional[str] = None
 

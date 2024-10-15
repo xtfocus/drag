@@ -1,10 +1,12 @@
 """
 File        : dynamic_prompt_tools.py
 Author      : tungnx23
-Description : Tools used for building dynamic strings
+Description : Functions used for building dynamic strings
 """
 
 from typing import Any, Callable, Dict, List
+
+from src.utils.core_models.models import Message
 
 PromptData = Dict[str, Any]
 
@@ -40,3 +42,18 @@ def conditional_part(
         if condition(data)
         else static_part(false_part)(data)
     )
+
+
+def history_to_text(history: List[Message] | None) -> str:
+    """
+    Format list of Message objects into conversation_text
+
+    role1: content 1
+    role2: content 2
+    role1: content 3
+
+    and so on
+    """
+    if not history:
+        return ""
+    return "\n".join([f"{msg.role}: {msg.content}" for msg in history]).strip()

@@ -8,9 +8,10 @@ It supports pure vector search, hybrid search, and hybrid search with semantic r
 from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizableTextQuery
 
-from .azure_index import azure_search_endpoint, credential
+from src.utils.azure_tools.azure_index import azure_search_endpoint, credential
+from src.utils.core_models.models import SemanticSearchArgs
+
 from .initialize_indexing import index_name
-from .models import SemanticSearchArgs
 
 
 def azure_cognitive_search_wrapper(
@@ -58,6 +59,7 @@ def azure_cognitive_search_wrapper(
         fields="vector",
         exhaustive=True,
     )
+
     results = search_client.search(
         search_text=search_text,
         vector_queries=[vector_query],

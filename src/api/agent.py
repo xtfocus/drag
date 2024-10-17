@@ -5,6 +5,7 @@ Description : Define specified agents working in coordination to answer user's q
 """
 
 import json
+from enum import auto
 from typing import Any, Dict, List, Literal, Optional
 
 from loguru import logger
@@ -15,11 +16,11 @@ from src.utils.language_models.llms import LLM
 from src.utils.prompting.chunks import Chunks
 from src.utils.prompting.prompt_data import (ConversationalRAGPromptData,
                                              ResearchPromptData)
-from src.utils.prompting.prompt_parts import create_prompt
 from src.utils.prompting.prompts import (
     AUGMENT_QUERY_PROMPT_TEMPLATE, DIRECT_ANSWER_PROMPT_TEMPLATE,
-    QUERY_ANALYZER_TEMPLATE, RESEARCH_ANSWER_PROMPT_TEMPLATE,
-    RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE, REVIEW_CHUNKS_PROMPT_TEMPLATE,
+    HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE, QUERY_ANALYZER_TEMPLATE,
+    RESEARCH_ANSWER_PROMPT_TEMPLATE, RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE,
+    REVIEW_CHUNKS_PROMPT_TEMPLATE, REVIEW_TEMPORARY_ANSWER_PROMPT_TEMPLATE,
     SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE,
     TASK_REPHRASE_TEMPLATE)
 from src.utils.reasoning_layers.base_layers import (BaseAgent,
@@ -89,6 +90,12 @@ class ResponseGenerator(BaseAgent):
         return await self.run()
 
 
+class HybridSearchResponseGenerator(ResponseGenerator):
+    async def generate_response(self) -> str:
+        self.template = HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE
+        return await self.run()
+
+
 class ResearchResponseGenerator(BaseAgent):
     """
     Synthesize intelligent research response based on search result or direct answer.
@@ -135,6 +142,99 @@ class ContextReviewer(BaseAgent):
         return await super().run(response_format={"type": "json_object"})
 
 
+class ContextCompleteEvaluator(BaseAgent):
+    """
+    LLM instance to review information completeness of chunks
+    """
+
+    def __init__(
+        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+    ):
+        super().__init__(
+            llm,
+            prompt_data,
+            template=REVIEW_TEMPORARY_ANSWER_PROMPT_TEMPLATE,
+            stream=stream,
+        )
+
+    async def run(self) -> int:
+        verdict = await super().run(response_format={"type": "json_object"})
+        verdict = json.loads(verdict).get("satisfied")
+        if str(verdict) != "1":
+            return 0
+        else:
+            return 1
+
+
+class PriorityPlanningProcessor:
+    """
+    A processor that execute planning=priority
+
+    Given a query, it searches internal data for context chunks, review them
+    There are two review rounds:
+    1st: for each chunk, answer whether a chunk contains part of the answer, in which case it will be selected
+    2nd:whether the selected chunks are sufficient to provide the final answer
+
+    If the 2nd round says no, it continue searching the internet for extra context, review them just like 1st round described above
+
+    Finally it produces final answer. The answer indicate which part is from internal data, which part is from external data
+
+    """
+
+    def __init__(self, client, search_config, prompt_data) -> None:
+
+        llm = LLM(client=client)
+
+        self.prompt_data = prompt_data
+
+        self.internal_query_processor = SingleQueryProcessor(
+            llm,
+            prompt_data=prompt_data,
+            search_type="internal",
+            search_config=search_config.get("internal"),
+        )
+        self.external_query_processor = SingleQueryProcessor(
+            llm,
+            prompt_data=prompt_data,
+            search_type="external",
+            search_config=search_config.get("external"),
+        )
+        self.evaluator = ContextCompleteEvaluator(llm=llm, prompt_data=prompt_data)
+
+    async def process(self):
+        _, internal_chunk_review_data = await self.internal_query_processor.process(
+            decide="search"
+        )
+        logger.info(f"INTERNAL_CHUNK_REVIEW_DATA:\n{internal_chunk_review_data}")
+
+        verdict = await self.evaluator.run()
+        external_chunk_review_data = []
+        if not verdict:
+            external_chunk_review_data = await self.external_query_processor.process()
+            logger.info(f"EXTERNAL_CHUNK_REVIEW_DATA:\n{external_chunk_review_data}")
+
+        self.prompt_data.update({"external_chunk_review": external_chunk_review_data})
+
+
+class PriorityPlanner(PriorityPlanningProcessor):
+    def __init__(
+        self, client, search_config, prompt_data, generate_config, stream=False
+    ) -> None:
+        super().__init__(client, search_config, prompt_data)
+
+        self.response_generator = HybridSearchResponseGenerator(
+            llm=LLM(client=client),
+            prompt_data=prompt_data,
+            generate_config=generate_config,
+        )
+        self.stream = stream
+
+    async def run(self):
+        combined_chunks = await self.process()
+        response = await self.response_generator.generate_response()
+        return response, combined_chunks
+
+
 class Planner:
     """
     Orchestrator that uses multiple specialized modules to produce final intelligent answer to ONE query.
@@ -148,7 +248,6 @@ class Planner:
         generate_config: Dict,
         search_config: Dict,
         prompt_data: ConversationalRAGPromptData,
-        planning_strategy: Literal["priority", "greedy"],
     ):
         llm = LLM(client=client)
         self.prompt_data = prompt_data
@@ -163,7 +262,6 @@ class Planner:
             llm=llm,
             prompt_data=self.prompt_data,
             search_config=search_config,
-            planning_strategy=planning_strategy,
         )
 
         self.response_generator = ResponseGenerator(
@@ -188,6 +286,84 @@ class Planner:
         return response, chunk_review_data
 
 
+class SingleQueryProcessor:
+    """
+    Processes a single query using either internal or external search tool (but not both), once
+    - decision making (search or not)
+    - search
+    - review
+
+    To replace the InternalSingleQueryProcessor
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: Any,
+        search_type: Literal["internal", "external"],
+        search_config: Dict[str, Dict[str, Any]],
+    ):
+        self.llm = llm
+        self.prompt_data = prompt_data
+        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
+        self.search_type = search_type
+        if search_type == "external":
+            self.context_retriever = ExternalContextRetriever(
+                search_config=search_config
+            )
+        else:
+
+            self.context_retriever = InternalContextRetriever(
+                search_config=search_config
+            )
+        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+
+        logger.info(f"self.search_config = {self.context_retriever.search_config}")
+
+    async def process(
+        self, decide: Literal["auto", "search", "answer"] = "auto"
+    ) -> tuple:
+        if decide == "auto":
+            decision = await self.decision_maker.run()
+            logger.info(f"DECISION = '{decision}'")
+        else:
+            decision = decide  # search or answer
+
+        if decision == "answer":
+            return decision, []
+
+        if self.search_type == "external":
+
+            search_result = self.context_retriever.run(
+                self.prompt_data.query,
+            )
+        else:
+            logger.info(f"query = {self.prompt_data.query} index_name={index_name}")
+            logger.info(f"self.search_config = {self.context_retriever.search_config}")
+            search_result = self.context_retriever.run(
+                self.prompt_data.query,
+                index_name=index_name,
+            )
+
+        context = Chunks(search_result)
+
+        logger.info(
+            f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
+        )
+
+        # Review chunks
+        self.prompt_data.update({"formatted_context": context.friendly_chunk_view()})
+        chunk_review_str = await self.context_reviewer.run()
+        context.integrate_chunk_review_data(chunk_review_str)
+
+        # Format review result as a string
+        chunk_review_data = context.chunk_review
+
+        self.prompt_data.update({"chunk_review": context.friendly_chunk_review_view()})
+
+        return decision, chunk_review_data
+
+
 class InternalSingleQueryProcessor:
     """
     Processes a single query
@@ -201,7 +377,6 @@ class InternalSingleQueryProcessor:
         llm: LLM,
         prompt_data: Any,
         search_config: Dict[str, Dict[str, Any]],
-        planning_strategy: Literal["priority", "greedy"],
     ):
         self.llm = llm
         self.prompt_data = prompt_data
@@ -209,15 +384,17 @@ class InternalSingleQueryProcessor:
         self.internal_context_retriever = InternalContextRetriever(
             search_config=search_config.get("internal")
         )
-        self.external_context_reviewer = ExternalContextRetriever(
+        self.external_context_retriever = ExternalContextRetriever(
             search_config=search_config.get("external")
         )
         self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
-        self.planning_strategy = planning_strategy
 
-    async def process(self) -> tuple:
-        decision = await self.decision_maker.run()
-        logger.info(f"DECISION = '{decision}'")
+    async def process(self, decide="auto") -> tuple:
+        if decide == "auto":
+            decision = await self.decision_maker.run()
+            logger.info(f"DECISION = '{decision}'")
+        else:
+            decision = decide  # search or answer
 
         if decision == "answer":
             return decision, []
@@ -227,7 +404,6 @@ class InternalSingleQueryProcessor:
             index_name=index_name,
         )
 
-        # Retrieve chunks
         context = Chunks(search_result)
 
         logger.info(
@@ -240,12 +416,11 @@ class InternalSingleQueryProcessor:
         context.integrate_chunk_review_data(chunk_review_str)
 
         # Format review result as a string
-        logger.info(f"CHUNK_REVIEW_STR:\n{chunk_review_str}")
         chunk_review_data = context.chunk_review
 
         self.prompt_data.update({"chunk_review": context.friendly_chunk_review_view()})
 
-        return decision, json.dumps(chunk_review_data)
+        return decision, chunk_review_data
 
 
 class SingleQueryResearcher:

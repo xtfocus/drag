@@ -60,6 +60,7 @@ class ConversationalRAGPromptData(BasePromptData):
     system_prompt: Optional[str] = None
     formatted_context: Optional[str] = None
     chunk_review: Optional[str] = None
+    external_chunk_review: Optional[str] = None
 
     @classmethod
     def from_chat_request(

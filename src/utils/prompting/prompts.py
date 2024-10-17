@@ -10,7 +10,7 @@ EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
 )
 
-REFUSE = """You must gracefully tell user that you are "unable to help with the query due to insufficient knowledge base on the topic". Then ask user if there's something else you can assist them with."""
+REFUSE = """\nYou must gracefully tell user that you are "unable to help with the query due to insufficient knowledge base on the topic". Then ask user if there's something else you can assist them with."""
 
 SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 
@@ -22,6 +22,9 @@ instruction_show = (
 )
 
 condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
+condition_external_chunk_review_not_empty = lambda data: bool(
+    data["external_chunk_review"]
+)
 
 condition_current_summary_exist = lambda data: bool(data.get("current_summary"))
 condition_recent_messages_exist = lambda data: bool(data.get("history_text"))
@@ -78,6 +81,23 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part("Standalone query:"),
 ]
 
+REVIEW_TEMPORARY_ANSWER_PROMPT_TEMPLATE = [
+    static_part(
+        "You are a researcher that found some helpful clues to answer the following question: "
+    ),
+    conditional_user_latest_query,
+    static_part(
+        lambda data: f"Clues you have found:\n: {data.get('formatted_context')}\n"
+    ),
+    static_part(
+        """Evaluate if the clues contains all information needed to provide a complete, direct and statisfying answer to the question
+        Structure the output using this JSON format:
+        {{
+        "satisfied": 1, # 0 if some necessary information doesn't exist in the clues. 1 if all information needed is there
+        }}
+        """
+    ),
+]
 
 REVIEW_CHUNKS_PROMPT_TEMPLATE = [
     static_part(
@@ -91,11 +111,10 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
         "precisely answers one or more aspects of the query. Evaluate "
         "each information chunk by answering the questions: Does the "
         "chunk contain any usable information? If yes, it should be "
-        "selected. Otherwise, it should be excluded."
+        "selected. Otherwise, it should be excluded.\n"  # Here we can ask GPTP to even respect the scope of the question
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
-    user_latest_query,
     conditional_user_latest_query,
     static_part(
         lambda data: f"Following are information chunks for you to review: \n{data.get('formatted_context')}\n"
@@ -119,22 +138,62 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
         """
     ),
 ]
-
-chunk_review_introduce = static_part(
-    lambda data: "An expert has analyzed available information related to the query. "
-    + f"They reviewed possible relevant information pieces as follows:\n{data['chunk_review']}"
+external_chunk_review_introduce = static_part(
+    lambda data: "An expert searched online for available information related to the query. "
+    + f"They reviewed potentially relevant online information as follows:\n{data['external_chunk_review']}"
 )
+chunk_review_introduce = static_part(
+    lambda data: "An expert has analyzed available internal information related to the query. "
+    + f"They reviewed potentially relevant information pieces as follows:\n{data['chunk_review']}"
+)
+
+conditional_chunk_review_introduce = conditional_part(
+    condition=condition_chunk_review_not_empty,
+    true_part=chunk_review_introduce,
+    false_part="",
+)
+conditional_external_chunk_review_introduce = conditional_part(
+    condition=condition_external_chunk_review_not_empty,
+    true_part=external_chunk_review_introduce,
+    false_part="",
+)
+
+
+HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
+    instruction_show,
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    user_latest_query,
+    conditional_chunk_review_introduce,
+    conditional_external_chunk_review_introduce,
+    conditional_part(
+        condition=lambda data: condition_chunk_review_not_empty(data)
+        or condition_external_chunk_review_not_empty(data),
+        true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
+        "Avoid including additional or tangent information unless explicitly "
+        "asked by the user. If the user’s query involves clarification or follow-up "
+        "questions, offer additional details.\n",
+        false_part=REFUSE,
+    ),
+    conditional_part(
+        condition=condition_external_chunk_review_not_empty,
+        true_part="When presenting online information, explicitly state that online information is for reference purpose and should be verified.",
+        false_part="",
+    ),
+    conditional_part(
+        condition=lambda data: condition_chunk_review_not_empty(data)
+        or condition_external_chunk_review_not_empty(data),
+        true_part=static_part(FOLLOWUP_PROMPT),
+        false_part=static_part(REDIRECT_PROMPT),
+    ),
+]
 
 SEARCH_ANSWER_PROMPT_TEMPLATE = [
     instruction_show,
     conditional_summary_show,
     conditional_recent_messages_show,
     user_latest_query,
-    conditional_part(
-        condition=condition_chunk_review_not_empty,
-        true_part=chunk_review_introduce,
-        false_part="",
-    ),
+    conditional_chunk_review_introduce,
     conditional_part(
         condition=condition_chunk_review_not_empty,
         true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "

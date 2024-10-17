@@ -14,7 +14,7 @@ from src.utils.core_models.models import ChatRequest, SummaryRequest
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
 
-from .agent import Planner, ResponseGenerator, Summarizer
+from .agent import Planner, PriorityPlanner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
 
 router = APIRouter()
@@ -94,7 +94,6 @@ async def chat(chat_request: ChatRequest) -> dict:
 
         generate_config = chat_request.generate_config.model_dump()
         search_config = chat_request.search_config.model_dump()
-        planning_strategy = chat_request.planning
 
         prompt_data = ConversationalRAGPromptData.from_chat_request(
             query=user_input.content,
@@ -103,23 +102,21 @@ async def chat(chat_request: ChatRequest) -> dict:
             system_prompt=chat_request.system_prompt,
         )
 
-        planner = Planner(
+        planner = PriorityPlanner(
             client=clients["chat-completion"],
             stream=False,
             generate_config=generate_config,
             search_config=search_config,
             prompt_data=prompt_data,
-            planning_strategy=planning_strategy,
         )
-        # Setting config
+
         ai_message, chunk_review = await planner.run()
 
         return {"message": ai_message, "chunk_review": chunk_review}
 
     except Exception as e:
-        raise
-        # logger.error(f"Error in chat handler: {str(e)}")
-        # raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in chat handler: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/v1/stream")

@@ -79,15 +79,15 @@ def azure_cognitive_search_wrapper(
 
 
 def bing_search_wrapper(
-    query: str, mkt: str = "en-US", top_n: int = 10
+    query: str, mkt: str = "en-US", top_results: int = 10
 ) -> List[Dict[str, Any]]:
     """
     Wrapper function for Bing Search functionality
 
-    top_n is applied in the end since bing_search filter results after setting answerCount,
+    top_results is applied in the end since bing_search filter results after setting answerCount,
     """
     response = bing_search(query, mkt)
-    results = extract_bing_search_results(response)[:top_n]
+    results = extract_bing_search_results(response)[:top_results]
     logger.info(f"Bing search returns {len(results)} results")
     return results
 

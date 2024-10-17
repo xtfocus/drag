@@ -19,13 +19,12 @@ from src.utils.azure_tools.get_variables import (azure_bing_api_key,
                                                  azure_search_endpoint)
 from src.utils.core_models.models import SemanticSearchArgs
 
-from .indexing_resource_name import index_name
-
 
 def azure_cognitive_search_wrapper(
     query: str,
     k: int,
     top_n: int,
+    index_name: str,
     search_text: str | None = None,
     semantic_args: SemanticSearchArgs = SemanticSearchArgs(
         query_type=None,
@@ -84,21 +83,25 @@ def bing_search_wrapper(
 ) -> List[Dict[str, Any]]:
     """
     Wrapper function for Bing Search functionality
+
+    top_n is applied in the end since bing_search filter results after setting answerCount,
     """
-    response = bing_search(query, mkt, top_n)
-    results = extract_bing_search_results(response)
+    response = bing_search(query, mkt)
+    results = extract_bing_search_results(response)[:top_n]
     logger.info(f"Bing search returns {len(results)} results")
     return results
 
 
-def bing_search(query: str, mkt: str = "en-US", top_n: int = 10) -> Dict[str, Any]:
+def bing_search(
+    query: str, mkt: str = "en-US", answer_count: int = 40
+) -> Dict[str, Any]:
     """
     Perform a Bing web search using the provided query.
 
     Args:
         query (str): The search query.
         mkt (str): The market code, e.g., "en-US". Defaults to "en-US".
-        top_n (int): The number of results to return. Defaults to 10.
+        answer_count (int): The number of results to return. Defaults to 10.
 
     Returns:
         Dict[str, Any]: A dictionary containing the search results.
@@ -112,7 +115,7 @@ def bing_search(query: str, mkt: str = "en-US", top_n: int = 10) -> Dict[str, An
     # Parameters that shouldn't be URL-encoded
     controlled_params = {
         "safeSearch": "Moderate",
-        "answerCount": top_n,
+        "answerCount": answer_count,
         "responseFilter": "Webpages,News",
     }
 

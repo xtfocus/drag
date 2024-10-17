@@ -94,6 +94,8 @@ async def chat(chat_request: ChatRequest) -> dict:
 
         generate_config = chat_request.generate_config.model_dump()
         search_config = chat_request.search_config.model_dump()
+        planning_strategy = chat_request.planning
+
         prompt_data = ConversationalRAGPromptData.from_chat_request(
             query=user_input.content,
             history=history,
@@ -107,6 +109,7 @@ async def chat(chat_request: ChatRequest) -> dict:
             generate_config=generate_config,
             search_config=search_config,
             prompt_data=prompt_data,
+            planning_strategy=planning_strategy,
         )
         # Setting config
         ai_message, chunk_review = await planner.run()

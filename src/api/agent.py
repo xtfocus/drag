@@ -5,12 +5,11 @@ Description : Define specified agents working in coordination to answer user's q
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from loguru import logger
 from openai import AsyncAzureOpenAI
 
-from src.utils.azure_tools.azure_semantic_search import default_semantic_args
 from src.utils.core_models.models import Message
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.chunks import Chunks
@@ -23,79 +22,11 @@ from src.utils.prompting.prompts import (
     RESEARCH_DIRECT_ANSWER_PROMPT_TEMPLATE, REVIEW_CHUNKS_PROMPT_TEMPLATE,
     SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE,
     TASK_REPHRASE_TEMPLATE)
+from src.utils.reasoning_layers.base_layers import (BaseAgent,
+                                                    ExternalContextRetriever,
+                                                    InternalContextRetriever)
 
-from .search import azure_cognitive_search_wrapper, bing_search_wrapper
-
-
-class BaseAgent:
-    """
-    Base Agent class to orchestrate llm, prompt template, and prompt data
-    """
-
-    def __init__(
-        self,
-        llm: LLM,
-        prompt_data: Any = None,
-        template: Any = None,
-        stream: bool = False,
-        generate_config: Any = None,
-    ):
-        self.llm = llm
-        self.data = prompt_data  # Shareable BasePromptData instance
-        self.stream = stream
-        self._prompt: Optional[str] = None
-        self._template = template
-        self._generate_config = generate_config or dict()
-
-    @property
-    def generate_config(self):
-        return self._generate_config
-
-    @property
-    def prompt(self) -> Optional[str]:
-        """
-        Instruction given to the Agent
-        """
-        return self._prompt
-
-    @prompt.setter
-    def prompt(self, value: str):
-        self._prompt = value
-
-    @property
-    def template(self) -> Any:
-        """
-        Prompt Template given to the agent
-        """
-        return self._template
-
-    @template.setter
-    def template(self, value: Any):
-        self._template = value
-
-    async def run(self, *args, **kwargs) -> str:
-        """
-        Generate a prompt from the prompt data and invoke the LLM.
-        """
-        self.prompt = create_prompt(self.data.__dict__, self.template)
-        messages = [Message(content=self.prompt, role="system")]
-
-        self.generate_config.update(kwargs)
-
-        response = await self.llm.invoke(
-            messages, stream=self.stream, *args, **self._generate_config
-        )
-
-        # Log the prompt and LLM output
-        self.log(response)
-
-        return response
-
-    def log(self, response: str):
-        delimiter = "\n" + "_" * 20 + "\n"
-        logger.info(delimiter + f"AGENT: {self.__class__.__name__}")
-        logger.info(f"INPUT:\n{self.prompt}")
-        logger.info(f"OUTPUT:\n{response}" + delimiter)
+from .indexing_resource_name import index_name
 
 
 class Summarizer(BaseAgent):
@@ -188,58 +119,6 @@ class ResearchResponseGenerator(BaseAgent):
         return await self.run(**self._generate_config)
 
 
-class ExternalContextRetriever:
-    """
-    External Search (Currently Bing Search API).
-    """
-
-    def __init__(self, search_config: Dict = {}):
-        self.search_config = search_config
-
-    @property
-    def search_config(self):
-        return self._search_config
-
-    @search_config.setter
-    def search_config(self, search_config: Dict):
-        self._search_config = search_config
-
-    def run(self, query: str) -> List:
-        return list(
-            bing_search_wrapper(
-                query=query,
-                **self._search_config,
-            )
-        )
-
-
-class InternalContextRetriever:
-    """
-    Internal Context Search (Currently Azure Search).
-    """
-
-    def __init__(self, search_config: Dict = {}):
-        self.search_config = search_config
-
-    @property
-    def search_config(self):
-        return self._search_config
-
-    @search_config.setter
-    def search_config(self, search_config: Dict):
-        self._search_config = search_config
-
-    def run(self, query: str) -> List:
-        return list(
-            azure_cognitive_search_wrapper(
-                query=query,
-                search_text=query,
-                semantic_args=default_semantic_args,
-                **self._search_config,
-            )
-        )
-
-
 class ContextReviewer(BaseAgent):
     """
     LLM instance to review chunks' usefulness.
@@ -258,7 +137,8 @@ class ContextReviewer(BaseAgent):
 
 class Planner:
     """
-    Orchestrator that uses multiple specialized modules to produce final intelligent answer.
+    Orchestrator that uses multiple specialized modules to produce final intelligent answer to ONE query.
+    Decomposition not applied here
     """
 
     def __init__(
@@ -268,6 +148,7 @@ class Planner:
         generate_config: Dict,
         search_config: Dict,
         prompt_data: ConversationalRAGPromptData,
+        planning_strategy: Literal["priority", "greedy"],
     ):
         llm = LLM(client=client)
         self.prompt_data = prompt_data
@@ -278,8 +159,11 @@ class Planner:
             template=AUGMENT_QUERY_PROMPT_TEMPLATE,
         )
 
-        self.single_query_processor = SingleQueryProcessor(
-            llm=llm, prompt_data=self.prompt_data, search_config=search_config
+        self.single_query_processor = InternalSingleQueryProcessor(
+            llm=llm,
+            prompt_data=self.prompt_data,
+            search_config=search_config,
+            planning_strategy=planning_strategy,
         )
 
         self.response_generator = ResponseGenerator(
@@ -304,17 +188,32 @@ class Planner:
         return response, chunk_review_data
 
 
-class SingleQueryProcessor:
+class InternalSingleQueryProcessor:
     """
-    Processes a single query from decision making to context retrieval and review.
+    Processes a single query
+    - decision making (search or not)
+    - search (a strategic searcher depends on whether planning_strategy is priority or greedy)
+    - review
     """
 
-    def __init__(self, llm: LLM, prompt_data: Any, search_config: Dict):
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: Any,
+        search_config: Dict[str, Dict[str, Any]],
+        planning_strategy: Literal["priority", "greedy"],
+    ):
         self.llm = llm
         self.prompt_data = prompt_data
         self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
-        self.context_retriever = InternalContextRetriever(search_config=search_config)
+        self.internal_context_retriever = InternalContextRetriever(
+            search_config=search_config.get("internal")
+        )
+        self.external_context_reviewer = ExternalContextRetriever(
+            search_config=search_config.get("external")
+        )
         self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+        self.planning_strategy = planning_strategy
 
     async def process(self) -> tuple:
         decision = await self.decision_maker.run()
@@ -324,7 +223,12 @@ class SingleQueryProcessor:
             return decision, []
 
         # Retrieve chunks
-        context = Chunks(self.context_retriever.run(self.prompt_data.query))
+        context = Chunks(
+            self.internal_context_retriever.run(
+                self.prompt_data.query,
+                index_name=index_name,
+            )
+        )
         logger.info(
             f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
         )
@@ -359,7 +263,7 @@ class SingleQueryResearcher:
         self.llm = llm
         self.prompt_data = prompt_data
 
-        self.query_processor = SingleQueryProcessor(
+        self.query_processor = InternalSingleQueryProcessor(
             llm=llm, prompt_data=self.prompt_data, search_config=search_config
         )
         self.response_generator = ResearchResponseGenerator(

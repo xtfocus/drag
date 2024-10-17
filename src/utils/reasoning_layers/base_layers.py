@@ -116,12 +116,30 @@ class ExternalContextRetriever(ContextRetriever):
     """
 
     def run(self, query: str) -> List:
-        return list(
+        response = list(
             bing_search_wrapper(
                 query=query,
                 **self._search_config,
             )
         )
+
+        response = [
+            {
+                "key": r["url"],
+                "content": r["snippet"],
+                "highlight": r["snippet"],
+                "meta": {
+                    "name": r["name"],
+                    "language": r["language"],
+                    "date": r["datePublished"],
+                    "answer_type": r["answerType"],
+                    "search_type": "external",
+                },
+            }
+            for r in response
+        ]
+
+        return response
 
 
 class InternalContextRetriever(ContextRetriever):
@@ -130,7 +148,7 @@ class InternalContextRetriever(ContextRetriever):
     """
 
     def run(self, query: str, index_name: str) -> List:
-        return list(
+        response = list(
             azure_cognitive_search_wrapper(
                 query=query,
                 search_text=query,
@@ -139,3 +157,19 @@ class InternalContextRetriever(ContextRetriever):
                 **self._search_config,
             )
         )
+
+        response = [
+            {
+                "key": r["chunk_id"],
+                "content": r["chunk"],
+                "highlight": [i.text for i in r["@search.captions"]],
+                "meta": {
+                    "title": r["title"],
+                    "parent_id": r["parent_id"],
+                    "search_type": "internal",
+                },
+            }
+            for r in response
+        ]
+
+        return response

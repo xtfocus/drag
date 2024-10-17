@@ -4,11 +4,9 @@ from typing import Any, Dict, List
 from loguru import logger
 
 
-class Chunks:
+class SearchResults:
     """
-    Collection of chunks
-
-    Expose formatting methods for ease of prompting/parsing chunk review result
+    Collection of search results from any search (Internal search or external search)
     """
 
     def __init__(self, chunks: List):
@@ -16,7 +14,7 @@ class Chunks:
             self._chunks = chunks
         else:
             self._chunks = []
-        self._chunk_review = []
+        self._chunk_review: List = []
 
     @property
     def chunks(self):
@@ -29,16 +27,6 @@ class Chunks:
         return self._chunks
 
     @property
-    def chunk_ids(self) -> List[Any]:
-        """
-        Get the list of chunk IDs from the chunks.
-
-        Returns:
-            List[Any]: List of chunk IDs.
-        """
-        return [chunk["chunk_id"] for chunk in self.chunks]
-
-    @property
     def chunk_review(self) -> List[Dict[str, Any]]:
         """Get the chunk review data."""
         return self._chunk_review
@@ -47,6 +35,24 @@ class Chunks:
     def chunk_review(self, value: List[Dict[str, Any]]) -> None:
         """Set the chunk review data."""
         self._chunk_review = value
+
+
+class Chunks(SearchResults):
+    """
+    Collection of chunks from search
+
+    Expose formatting methods for ease of prompting/parsing chunk review result
+    """
+
+    @property
+    def chunk_ids(self) -> List[Any]:
+        """
+        Get the list of chunk IDs from the chunks.
+
+        Returns:
+            List[Any]: List of chunk IDs.
+        """
+        return [chunk["key"] for chunk in self.chunks]
 
     def integrate_chunk_review_data(self, chunk_review: str):
         """
@@ -79,12 +85,11 @@ class Chunks:
 
         for c in result:
             true_index = c["info_no"] - 1  # Normalize numbering back to 0-indexed
-            c["chunk_id"] = self.chunks[true_index]["chunk_id"]
-            c["chunk"] = self.chunks[true_index]["chunk"]
-            c["title"] = self.chunks[true_index]["title"]
-            c["highlight"] = [
-                i.text for i in self.chunks[true_index]["@search.captions"]
-            ]
+            c["key"] = self.chunks[true_index]["key"]
+            c["content"] = self.chunks[true_index]["content"]
+
+            c["highlight"] = self.chunks[true_index]["highlight"]
+            c["meta"] = self.chunks[true_index]["meta"]
 
         # Drop irrelevant chunks
         self.chunk_review = [c for c in result if c["review_score"] > 0]
@@ -93,7 +98,7 @@ class Chunks:
         """
         Chunk review content. To be used in a prompt
         """
-        keys_to_keep = ["chunk", "review_score", "review_detail"]
+        keys_to_keep = ["content", "review_score", "review_detail"]
         return [{key: item[key] for key in keys_to_keep} for item in self.chunk_review]
 
     def friendly_chunk_view(self):
@@ -101,6 +106,6 @@ class Chunks:
         Numbered chunk content. To be used in a prompt
         """
         return [
-            {"info_no": i + 1, "content": v["chunk"]}
+            {"info_no": i + 1, "content": v["content"]}
             for i, v in enumerate(self.chunks)  # Numbering starts from 1
         ]

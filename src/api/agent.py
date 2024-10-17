@@ -222,13 +222,14 @@ class InternalSingleQueryProcessor:
         if decision == "answer":
             return decision, []
 
-        # Retrieve chunks
-        context = Chunks(
-            self.internal_context_retriever.run(
-                self.prompt_data.query,
-                index_name=index_name,
-            )
+        search_result = self.internal_context_retriever.run(
+            self.prompt_data.query,
+            index_name=index_name,
         )
+
+        # Retrieve chunks
+        context = Chunks(search_result)
+
         logger.info(
             f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
         )

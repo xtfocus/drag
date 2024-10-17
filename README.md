@@ -1,5 +1,6 @@
+This version is toxic. just some ideas. will be deleted soon
 # TODO
-- [ ] `src.utils` should not copy from `src.api`. Modify the code (copying from api to utils. also create modules inside utils)
+- [x] `src.utils` should not copy from `src.api`. Modify the code (copying from api to utils. also create modules inside utils)
 - [ ] Use the decomposer. Create a composer as well
 - [ ] Give the planner better instruction on how to adapt plan on the fly
 

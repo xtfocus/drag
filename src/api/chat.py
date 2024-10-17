@@ -5,7 +5,6 @@ Description : Implements API endpoints for chat functionality
 """
 
 import json
-from os import system
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse

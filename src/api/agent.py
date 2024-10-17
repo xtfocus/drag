@@ -24,7 +24,7 @@ from src.utils.prompting.prompts import (
     SEARCH_ANSWER_PROMPT_TEMPLATE, SUMMARIZE_PROMPT_TEMPLATE,
     TASK_REPHRASE_TEMPLATE)
 
-from .search import azure_cognitive_search_wrapper
+from .search import azure_cognitive_search_wrapper, bing_search_wrapper
 
 
 class BaseAgent:
@@ -188,9 +188,34 @@ class ResearchResponseGenerator(BaseAgent):
         return await self.run(**self._generate_config)
 
 
-class ContextRetriever:
+class ExternalContextRetriever:
     """
-    Context Search (Currently Azure Search).
+    External Search (Currently Bing Search API).
+    """
+
+    def __init__(self, search_config: Dict = {}):
+        self.search_config = search_config
+
+    @property
+    def search_config(self):
+        return self._search_config
+
+    @search_config.setter
+    def search_config(self, search_config: Dict):
+        self._search_config = search_config
+
+    def run(self, query: str) -> List:
+        return list(
+            bing_search_wrapper(
+                query=query,
+                **self._search_config,
+            )
+        )
+
+
+class InternalContextRetriever:
+    """
+    Internal Context Search (Currently Azure Search).
     """
 
     def __init__(self, search_config: Dict = {}):
@@ -288,7 +313,7 @@ class SingleQueryProcessor:
         self.llm = llm
         self.prompt_data = prompt_data
         self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
-        self.context_retriever = ContextRetriever(search_config=search_config)
+        self.context_retriever = InternalContextRetriever(search_config=search_config)
         self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
 
     async def process(self) -> tuple:

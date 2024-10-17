@@ -5,13 +5,21 @@ Description: This module provides functionality to perform similarity searches u
 It supports pure vector search, hybrid search, and hybrid search with semantic reranking.
 """
 
+from datetime import datetime
+from typing import Any, Dict, List
+
+import requests
 from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizableTextQuery
+from loguru import logger
 
-from src.utils.azure_tools.azure_index import azure_search_endpoint, credential
+from src.utils.azure_tools.get_credentials import credential
+from src.utils.azure_tools.get_variables import (azure_bing_api_key,
+                                                 azure_bing_endpoint,
+                                                 azure_search_endpoint)
 from src.utils.core_models.models import SemanticSearchArgs
 
-from .initialize_indexing import index_name
+from .indexing_resource_name import index_name
 
 
 def azure_cognitive_search_wrapper(
@@ -65,7 +73,110 @@ def azure_cognitive_search_wrapper(
         vector_queries=[vector_query],
         select=["parent_id", "chunk_id", "chunk", "title"],
         top=top_n,
-        **semantic_args.model_dump()
+        **semantic_args.model_dump(),
     )
 
     return results
+
+
+def bing_search_wrapper(
+    query: str, mkt: str = "en-US", top_n: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Wrapper function for Bing Search functionality
+    """
+    response = bing_search(query, mkt, top_n)
+    results = extract_bing_search_results(response)
+    logger.info(f"Bing search returns {len(results)} results")
+    return results
+
+
+def bing_search(query: str, mkt: str = "en-US", top_n: int = 10) -> Dict[str, Any]:
+    """
+    Perform a Bing web search using the provided query.
+
+    Args:
+        query (str): The search query.
+        mkt (str): The market code, e.g., "en-US". Defaults to "en-US".
+        top_n (int): The number of results to return. Defaults to 10.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the search results.
+
+    Raises:
+        Exception: If there's an error during the API call.
+    """
+    subscription_key = azure_bing_api_key
+    endpoint = azure_bing_endpoint + "/v7.0/search"
+
+    # Parameters that shouldn't be URL-encoded
+    controlled_params = {
+        "safeSearch": "Moderate",
+        "answerCount": top_n,
+        "responseFilter": "Webpages,News",
+    }
+
+    # Basic parameters
+    params = {"q": query, "mkt": mkt}
+
+    headers = {"Ocp-Apim-Subscription-Key": subscription_key}
+
+    try:
+        # Construct the URL manually to prevent URL-encoding of specific parameters
+        url = f"{endpoint}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+        for k, v in controlled_params.items():
+            url += f"&{k}={v}"
+
+        print(url)
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as ex:
+        raise ex
+
+
+def extract_bing_search_results(results: dict) -> list:
+    """
+    Extracting key information from Bing Search result returned by bing_search
+    """
+    extracted_data = []
+
+    for result in results.get("webPages", {}).get("value", []):
+        # Extract fields for general search results
+        date_published = result.get("datePublished")
+        if date_published:
+            try:
+                date_published = datetime.strptime(
+                    date_published.split("T")[0], "%Y-%m-%d"
+                ).strftime("%Y/%m/%d")
+            except ValueError:
+                date_published = None  # If parsing fails, default to None
+        extracted_data.append(
+            {
+                "name": result.get("name"),
+                "answerType": "webPages",
+                "url": result.get("url"),
+                "language": result.get("language"),
+                "isFamilyFriendly": result.get("isFamilyFriendly"),
+                "cachedPageUrl": result.get("cachedPageUrl"),
+                "snippet": result.get("snippet"),
+                "datePublished": date_published,
+            }
+        )
+
+    for news_result in results.get("news", {}).get("value", []):
+        # Extract fields for news results
+        extracted_data.append(
+            {
+                "name": news_result.get("name"),
+                "answerType": "news",
+                "url": news_result.get("url"),
+                "provider": (news_result.get("provider") or [{"name": "None"}])[0].get(
+                    "name"
+                ),
+                "category": news_result.get("category"),
+            }
+        )
+
+    return extracted_data

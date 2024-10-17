@@ -4,35 +4,17 @@ Author: tungnx23
 Description: Create & validate an Azure Search service index
 """
 
-import os
 from typing import List
 
-from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
-from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex
 from fastapi import HTTPException
 from loguru import logger
 
 from .fields import pretty_schema
-
-credential = (
-    AzureKeyCredential(os.getenv("AZURE_SEARCH_ADMIN_KEY", ""))
-    if len(os.getenv("AZURE_SEARCH_ADMIN_KEY", "")) > 0
-    else DefaultAzureCredential()
-)
-
-
-azure_search_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
-
-try:
-    assert isinstance(azure_search_endpoint, str)
-except:
-    logger.error(
-        f"Invalid type AZURE_SEARCH_SERVICE_ENDPOINT: {str(azure_search_endpoint)}"
-    )
-    raise
+from .get_credentials import credential
+from .get_variables import azure_search_endpoint
 
 index_client = SearchIndexClient(endpoint=azure_search_endpoint, credential=credential)
 

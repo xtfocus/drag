@@ -4,28 +4,12 @@ Author: tungnx23
 Description: Create & validate an Azure Search indexer
 """
 
-import os
-
-from azure.core.credentials import AzureKeyCredential
-from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexerClient
 from azure.search.documents.indexes.models import FieldMapping, SearchIndexer
 from loguru import logger
 
-try:
-    azure_search_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-
-    search_admin_key = os.getenv("AZURE_SEARCH_ADMIN_KEY", "")
-
-    credential = (
-        AzureKeyCredential(search_admin_key)
-        if len(search_admin_key) > 0
-        else DefaultAzureCredential()
-    )
-
-except Exception as e:
-    logger.error(f"Error getting Azure Search service Endpoint: {e}")
-    raise
+from .get_credentials import credential
+from .get_variables import azure_search_endpoint
 
 indexer_client = SearchIndexerClient(
     endpoint=azure_search_endpoint, credential=credential

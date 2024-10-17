@@ -5,7 +5,6 @@ Description : Define lifespan variables used by app
 """
 
 import contextlib
-import logging
 import os
 
 import azure.identity.aio
@@ -34,15 +33,10 @@ async def lifespan(app: fastapi.FastAPI):
         client_args["api_key"] = os.getenv("AZURE_OPENAI_KEY")
     else:
         if client_id := os.getenv("AZURE_OPENAI_CLIENT_ID"):
-            # Authenticate using a user-assigned managed identity on Azure
-            # See aca.bicep for value of AZURE_OPENAI_CLIENT_ID
             default_credential = azure.identity.aio.ManagedIdentityCredential(
                 client_id=client_id
             )
         else:
-            # Authenticate using the default Azure credential chain
-            # See https://docs.microsoft.com/azure/developer/python/azure-sdk-authenticate#defaultazurecredential
-            # This will *not* work inside a Docker container.
             default_credential = azure.identity.aio.DefaultAzureCredential(
                 exclude_shared_token_cache_credential=True
             )
@@ -62,21 +56,16 @@ async def lifespan(app: fastapi.FastAPI):
         **client_args,
     )
 
-    from .initialize_indexing import (initialize_document_indexing,
-                                      initialize_summary_indexing)
+    from .initialize_indexing import initialize_document_indexing
 
-    # Initialize indexing clients
     document_indexing = initialize_document_indexing()
-    summary_indexing = initialize_summary_indexing()
 
     yield
 
     await clients["chat-completion"].close()
+
     document_indexing["index_client"].close()
     document_indexing["indexer_client"].close()
-
-    summary_indexing["index_client"].close()
-    summary_indexing["indexer_client"].close()
 
 
 def create_app():
@@ -86,8 +75,8 @@ def create_app():
     env = Env()
 
     if not os.getenv("RUNNING_IN_PRODUCTION"):
-        env.read_env(".env")
-        logging.basicConfig(level=logging.INFO)
+        env.read_env(".env.local")
+        # logging.basicConfig(level=logging.DEBUG)
 
     app = fastapi.FastAPI(docs_url="/", lifespan=lifespan)
 

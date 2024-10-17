@@ -4,23 +4,12 @@ Author: tungnx23
 Description: Set the searchable fields, including vector and non-vector fields
 """
 
-import os
-
 from azure.search.documents.indexes.models import (SearchField,
                                                    SearchFieldDataType)
 from loguru import logger
 
-try:
-    azure_openai_embedding_dimensions = int(
-        os.environ["AZURE_OPENAI_EMBEDDING_DIMENSIONS"]
-    )
-    vector_search_profile_name = os.getenv(
-        "VECTOR_SEARCH_PROFILE_NAME", "myHnswProfile"
-    )
-except Exception as e:
-    logger.error(f"Error import environment variable(s) \n {e}")
-    raise
-
+from .get_variables import (azure_openai_embedding_dimensions,
+                            vector_search_profile_name)
 
 logger.info(f"Embedding Dimensions set to {azure_openai_embedding_dimensions }")
 logger.info(f"Set vector_search_profile_name to {vector_search_profile_name}")

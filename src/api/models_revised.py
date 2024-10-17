@@ -5,6 +5,7 @@ Description : Define Pydantic models for use in API routes and data validation
 """
 
 import os
+from enum import Enum
 from typing import Annotated, Any, List, Literal, Optional, Union
 
 from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
@@ -12,7 +13,24 @@ from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class SearchConfig(BaseModel):
+class MessageRole(str, Enum):
+    USER = "user"
+    SYSTEM = "system"
+    ASSISTANT = "assistant"
+
+
+class SearchType(str, Enum):
+    INTERNAL = "internal"
+    EXTERNAL = "external"
+
+
+class PlanningStrategy(str, Enum):
+    AUTO = "auto"
+    PRIORITY = "priority"
+    GREEDY = "greedy"
+
+
+class InternalSearchConfig(BaseModel):
     """
     Represents the search configuration.
     """
@@ -36,6 +54,66 @@ class SearchConfig(BaseModel):
             ),
         ]
     ] = int(os.getenv("K_NEAREST_NEIGHBORS", 3))
+
+
+class ExternalSearchConfig(BaseModel):
+    top_results: Annotated[
+        int,
+        Field(
+            description="Number of top results to return for external search.",
+            gt=0,
+        ),
+    ] = int(os.getenv("EXTERNAL_TOP_RESULTS", 10))
+
+
+class SearchConfig(BaseModel):
+    types: Annotated[
+        List[SearchType],
+        Field(
+            description="The types of search to perform. Can include 'internal', 'external', or both."
+        ),
+    ] = [SearchType.INTERNAL]
+    internal: Optional[InternalSearchConfig] = Field(
+        default_factory=InternalSearchConfig,
+        description="Configuration for internal search.",
+    )
+    external: Optional[ExternalSearchConfig] = None
+    planning: Annotated[
+        PlanningStrategy,
+        Field(description="The planning strategy for search operations."),
+    ] = PlanningStrategy.PRIORITY
+
+    @model_validator(mode="before")
+    def validate_search_types(cls, values):
+        types = values.get("types", [])
+
+        # Check if types list is empty
+        if not types:
+            raise ValueError(
+                "At least one search type (internal or external) must be selected."
+            )
+        # Ensure all types are valid members of SearchType
+        for t in types:
+            if t not in SearchType:
+                raise ValueError(
+                    f"Invalid search type: {t}. Must be one of: {list(SearchType)}"
+                )
+
+        return values
+
+    @model_validator(mode="after")
+    def check_search_config(self):
+        if SearchType.INTERNAL in self.types and self.internal is None:
+            self.internal = InternalSearchConfig()
+        if SearchType.EXTERNAL in self.types and self.external is None:
+            self.external = ExternalSearchConfig()
+
+        if not self.types:
+            raise ValueError(
+                "At least one search type must be selected (internal or external)."
+            )
+
+        return self
 
 
 class GenerateConfig(BaseModel):
@@ -136,16 +214,16 @@ class ChatRequest(BaseModel):
 
     messages: Annotated[List[Message], Field(description="Most recent messages")]
     system_prompt: Annotated[str, Field(description="The system-level prompt.")]
+    user_prompt: Annotated[str, Field(description="The user's specific instruction")]
     summary: Annotated[
         Summary, Field(description="The current summary of the conversation.")
     ]
     search_config: Optional[
-        Annotated[SearchConfig, Field(description="Config for knowledge base search")]
-    ] = SearchConfig()
-
+        Annotated[SearchConfig, Field(description="Config for Search")]
+    ] = Field(default_factory=SearchConfig)
     generate_config: Optional[
         Annotated[GenerateConfig, Field(description="Config for LLM generation")]
-    ] = GenerateConfig()
+    ] = Field(default_factory=GenerateConfig)
 
 
 class ChatHistory(BaseModel):

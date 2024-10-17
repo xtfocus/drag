@@ -12,16 +12,15 @@ from azure.search.documents.indexes.models import (
     OutputFieldMappingEntry, SearchIndexerIndexProjections,
     SearchIndexerIndexProjectionSelector,
     SearchIndexerIndexProjectionsParameters, SearchIndexerSkillset, SplitSkill)
-from loguru import logger
 
-# Configuration for chunking
-# https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-textsplit
+from .get_variables import (azure_openai_embedding_deployment,
+                            azure_openai_embedding_dimensions,
+                            azure_openai_endpoint, azure_openai_key,
+                            embedding_model_name)
+
 split_skill_text_source = "/document/content"
 embedding_skill_text_source = "/document/pages/*"
 
-# Even though the document says pages mode won't break up sentences, it does
-# Simply put, there's no way to create complete chunks in Azure
-# Also, to return the page number as part of the chunk meta data is not trivial, which it should be.
 split_skill = SplitSkill(
     description="Split skill to chunk documents",
     text_split_mode="pages",  # the default mode
@@ -33,23 +32,6 @@ split_skill = SplitSkill(
     ],
     outputs=[OutputFieldMappingEntry(name="textItems", target_name="pages")],
 )
-
-# Configuration for embedding
-# https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-azure-openai-embedding
-try:
-    azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    azure_openai_key = os.getenv("AZURE_OPENAI_KEY")
-    azure_openai_embedding_deployment = os.getenv(
-        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "embedding"
-    )
-    azure_openai_embedding_dimensions = int(
-        os.getenv("AZURE_OPENAI_EMBEDDING_DIMENSIONS", 1024)
-    )
-    embedding_model_name = os.environ["AZURE_OPENAI_MODEL_NAME"]
-    azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
-except Exception as e:
-    logger.error(f"Error importing evironment variable(s)\n {e}")
-    raise
 
 embedding_skill = AzureOpenAIEmbeddingSkill(
     description="Skill to generate embeddings via Azure OpenAI",

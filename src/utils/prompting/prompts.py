@@ -258,9 +258,6 @@ DIRECT_ANSWER_PROMPT_TEMPLATE = [
     conditional_recent_messages_show,
     conditional_user_latest_query,
     static_part("Provide the user with a final answer. Be concise and direct."),
-    static_part(
-        "If the user's question is about company policies or regulation, ask if the user want you to do a document search to answer the question."
-    ),
     static_part(FOLLOWUP_PROMPT),
 ]
 

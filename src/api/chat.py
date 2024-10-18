@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
+from api.system_prompt import get_kimi_system_prompt
 from src.utils.core_models.models import ChatRequest, SummaryRequest
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
@@ -18,6 +19,7 @@ from .agent import ChatPriorityPlanner, Planner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
 
 router = APIRouter()
+kimi_system_promtp = get_kimi_system_prompt()
 
 
 @router.post("/api/v1/chat_template")
@@ -35,7 +37,8 @@ async def chat_template(chat_request: ChatRequest, stream: bool = False) -> dict
     prompt_data = ConversationalRAGPromptData.from_chat_request(
         query=user_input.content,
         history=history,
-        system_prompt=chat_request.system_prompt,
+        # system_prompt=chat_request.system_prompt,
+        system_prompt=kimi_system_promtp,
     )
 
     planner = ResponseGenerator(
@@ -99,7 +102,8 @@ async def chat(chat_request: ChatRequest) -> dict:
             query=user_input.content,
             history=history,
             current_summary=chat_request.summary.content,
-            system_prompt=chat_request.system_prompt,
+            # system_prompt=chat_request.system_prompt,
+            system_prompt=kimi_system_promtp,
         )
 
         planner = ChatPriorityPlanner(
@@ -146,7 +150,8 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
             query=user_input.content,
             history=history,
             current_summary=chat_request.summary.content,
-            system_prompt=chat_request.system_prompt,
+            # system_prompt=chat_request.system_prompt,
+            system_prompt=kimi_system_promtp,
         )
 
         planner = ChatPriorityPlanner(

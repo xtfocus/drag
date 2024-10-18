@@ -207,19 +207,19 @@ class PriorityPlanningProcessor:
         self.evaluator = ContextCompleteEvaluator(llm=llm, prompt_data=prompt_data)
 
     async def process(self):
-        _, internal_chunk_review_data = await self.internal_query_processor.process(
-            decide="search"
+        first_decision, internal_chunk_review_data = (
+            await self.internal_query_processor.process(decide="auto")
         )
         verdict = await self.evaluator.run()
         external_chunk_review_data = []
-        if not verdict:
+        if (not verdict) and (first_decision == "search"):
             _, external_chunk_review_data = await self.external_query_processor.process(
                 decide="search"
             )
 
         self.prompt_data.update({"external_chunk_review": external_chunk_review_data})
 
-        return external_chunk_review_data + internal_chunk_review_data
+        return first_decision, external_chunk_review_data + internal_chunk_review_data
 
 
 class ChatPriorityPlanner(PriorityPlanningProcessor):
@@ -254,8 +254,12 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         query = await self.rephrase_agent.run()
         self.prompt_data.update({"query": query})
 
-        combined_chunks = await self.process()
-        response = await self.response_generator.generate_response()
+        decision, combined_chunks = await self.process()
+        if decision == "answer":
+            response = await self.response_generator.direct_answer()
+        else:
+            response = await self.response_generator.generate_response()
+
         return response, combined_chunks
 
 

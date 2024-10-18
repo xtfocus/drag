@@ -73,7 +73,8 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part(
         "Rephrase the follow-up query to be a standalone "
         "query that clearly reflects the user's intent, "
-        "incorporating relevant context from the conversation.\n"
+        "incorporating relevant context from the conversation. "
+        "If the query is already complete and obvious in itself, do not rephrase it."
     ),
     conditional_summary_show,
     conditional_recent_messages_show,

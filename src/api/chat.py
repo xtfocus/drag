@@ -14,7 +14,7 @@ from src.utils.core_models.models import ChatRequest, SummaryRequest
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
 
-from .agent import Planner, PriorityPlanner, ResponseGenerator, Summarizer
+from .agent import ChatPriorityPlanner, Planner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
 
 router = APIRouter()
@@ -102,7 +102,7 @@ async def chat(chat_request: ChatRequest) -> dict:
             system_prompt=chat_request.system_prompt,
         )
 
-        planner = PriorityPlanner(
+        planner = ChatPriorityPlanner(
             client=clients["chat-completion"],
             stream=False,
             generate_config=generate_config,
@@ -149,7 +149,7 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
             system_prompt=chat_request.system_prompt,
         )
 
-        planner = Planner(
+        planner = ChatPriorityPlanner(
             client=clients["chat-completion"],
             stream=True,
             generate_config=generate_config,

@@ -14,7 +14,7 @@ REFUSE = """\nYou must gracefully tell user that you are "unable to help with th
 
 SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 
-FOLLOWUP_PROMPT = "\nFinally, provide a leading question: ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
+FOLLOWUP_PROMPT = "\nFinally, ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
 instruction_show = (
@@ -81,16 +81,17 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part("Standalone query:"),
 ]
 
-REVIEW_TEMPORARY_ANSWER_PROMPT_TEMPLATE = [
+REVIEW_INTERNAL_CONTEXT_COMPLETENESS = [
     static_part(
         "You are a researcher that found some helpful clues to answer the following question: "
     ),
     conditional_user_latest_query,
     static_part(
-        lambda data: f"Clues you have found:\n: {data.get('formatted_context')}\n"
+        lambda data: "Clues you have found:\n:"
+        + "\n".join([i["content"] for i in data.get("chunk_review")])
     ),
     static_part(
-        """Evaluate if the clues contains all information needed to provide a complete, direct and statisfying answer to the question
+        """\nEvaluate if the clues contains all information needed to provide a complete, direct and statisfying answer to the question
         Structure the output using this JSON format:
         {{
         "satisfied": 1, # 0 if some necessary information doesn't exist in the clues. 1 if all information needed is there
@@ -139,12 +140,12 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
     ),
 ]
 external_chunk_review_introduce = static_part(
-    lambda data: "An expert searched online for available information related to the query. "
-    + f"They reviewed potentially relevant online information as follows:\n{data['external_chunk_review']}"
+    lambda data: "You searched online for available information related to the query. "
+    + f"You analyzed potentially relevant online information as follows:\n{data['external_chunk_review']}"
 )
 chunk_review_introduce = static_part(
-    lambda data: "An expert has analyzed available internal information related to the query. "
-    + f"They reviewed potentially relevant information pieces as follows:\n{data['chunk_review']}"
+    lambda data: "You searched internal knowledge database and analyzed internal information related to the query as follows. "
+    + f"\n{data['chunk_review']}"
 )
 
 conditional_chunk_review_introduce = conditional_part(
@@ -170,14 +171,24 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         condition=lambda data: condition_chunk_review_not_empty(data)
         or condition_external_chunk_review_not_empty(data),
         true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
-        "Avoid including additional or tangent information unless explicitly "
-        "asked by the user. If the user’s query involves clarification or follow-up "
-        "questions, offer additional details.\n",
+        "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet)"
+        "Avoid including additional or tangent information unless explicitly asked by the user. "
+        "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,
     ),
     conditional_part(
+        condition=lambda data: condition_chunk_review_not_empty(data),
+        true_part="",
+        false_part="Inform the user that the available internal information does not provide a conclusive answer.",
+    ),
+    conditional_part(
+        condition=lambda data: condition_chunk_review_not_empty(data)
+        or condition_external_chunk_review_not_empty(data),
+        true_part=SUMMARIZE_ANSWER,
+    ),
+    conditional_part(
         condition=condition_external_chunk_review_not_empty,
-        true_part="When presenting online information, explicitly state that online information is for reference purpose and should be verified.",
+        true_part="Regarding the internet information that you found, you must explicitly say that they are internet information and might not be absolute facts and User should verify themselves.",
         false_part="",
     ),
     conditional_part(

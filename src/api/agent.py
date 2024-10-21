@@ -32,7 +32,12 @@ from .indexing_resource_name import index_name
 
 class Summarizer(BaseAgent):
     """
-    Summarizes chat history.
+    Agent responsible for summarizing the conversation history.
+
+    Args:
+        llm (LLM): The language model instance used for text generation.
+        prompt_data (ConversationalRAGPromptData): Data necessary for prompt generation.
+        stream (bool): Whether to stream responses or not. Defaults to False.
     """
 
     def __init__(
@@ -45,7 +50,15 @@ class Summarizer(BaseAgent):
 
 class QueryAnalyzer(BaseAgent):
     """
-    Analyzes (rephrased) user query using predefined criteria.
+    Analyzes a rephrased user query to determine the best course of action (e.g., search or answer directly).
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ConversationalRAGPromptData): Data used for analyzing the query.
+        stream (bool): Whether to stream the result. Defaults to False.
+
+    Returns:
+        str: Either 'search' or 'answer', based on the analysis.
     """
 
     def __init__(
@@ -63,7 +76,17 @@ class QueryAnalyzer(BaseAgent):
 
 class ResponseGenerator(BaseAgent):
     """
-    Synthesize intelligent assistant response based on search result or direct answer.
+    Generates a response based on search results or directly from the query.
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ConversationalRAGPromptData): Data for generating responses.
+        stream (bool): Whether to stream responses or not. Defaults to False.
+        generate_config (dict): Configuration for response generation.
+
+    Methods:
+        direct_answer: Generates a direct answer from the query.
+        generate_response: Generates a response based on search results.
     """
 
     def __init__(
@@ -91,6 +114,10 @@ class ResponseGenerator(BaseAgent):
 
 
 class HybridSearchResponseGenerator(ResponseGenerator):
+    """
+    Generates responses based on both internal and external search results using a hybrid approach.
+    """
+
     async def generate_response(self) -> str:
         self.template = HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE
         return await self.run()
@@ -98,7 +125,17 @@ class HybridSearchResponseGenerator(ResponseGenerator):
 
 class ResearchResponseGenerator(BaseAgent):
     """
-    Synthesize intelligent research response based on search result or direct answer.
+    Generates research-based responses using both internal data and external search results.
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ResearchPromptData): Data for research response generation.
+        stream (bool): Whether to stream responses.
+        generate_config (Dict): Configuration for generating responses.
+
+    Methods:
+        direct_answer: Provides a direct answer to a query.
+        generate_response: Generates a response based on research findings.
     """
 
     def __init__(
@@ -128,7 +165,12 @@ class ResearchResponseGenerator(BaseAgent):
 
 class ContextReviewer(BaseAgent):
     """
-    LLM instance to review chunks' usefulness.
+    Agent for reviewing the usefulness of context chunks.
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ConversationalRAGPromptData): Data related to the chunks.
+        stream (bool): Whether to stream responses. Defaults to False.
     """
 
     def __init__(
@@ -144,7 +186,15 @@ class ContextReviewer(BaseAgent):
 
 class ContextCompleteEvaluator(BaseAgent):
     """
-    LLM instance to review information completeness of chunks
+    Agent for evaluating the completeness of information in context chunks.
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ConversationalRAGPromptData): Data related to the context.
+        stream (bool): Whether to stream responses. Defaults to False.
+
+    Returns:
+        int: Returns 1 if the context is deemed complete, otherwise 0.
     """
 
     def __init__(
@@ -266,7 +316,6 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
 class Planner:
     """
     Orchestrator that uses multiple specialized modules to produce final intelligent answer to ONE query.
-    Decomposition not applied here
     """
 
     def __init__(

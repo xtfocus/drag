@@ -220,12 +220,6 @@ class ChatRequest(BaseModel):
         Annotated[GenerateConfig, Field(description="Config for LLM generation")]
     ] = Field(default_factory=GenerateConfig)
 
-    planning: Optional[
-        Annotated[
-            PlanningStrategy, Field(description="Planning Strategy for query handling")
-        ]
-    ] = PlanningStrategy.PRIORITY
-
 
 class ChatHistory(BaseModel):
     """

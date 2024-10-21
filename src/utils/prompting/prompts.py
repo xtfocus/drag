@@ -14,7 +14,9 @@ REFUSE = """\nYou must gracefully tell user that you are "unable to help with th
 
 SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 
-FOLLOWUP_PROMPT = "\nFinally, ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
+# FOLLOWUP_PROMPT = "\nFinally, ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
+FOLLOWUP_PROMPT = ""
+
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
 instruction_show = (

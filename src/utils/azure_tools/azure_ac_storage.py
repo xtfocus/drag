@@ -13,7 +13,7 @@ from .azure_indexer import indexer_client
 from .get_variables import (RESOURCEGROUPS, SUBSCRIPTIONS,
                             azure_storage_account,
                             azure_storage_connection_string,
-                            document_container)
+                            document_container, summary_container)
 
 
 def get_connection_string():
@@ -32,7 +32,7 @@ def get_connection_string():
         return f"ResourceId=/subscriptions/{SUBSCRIPTIONS}/resourceGroups/{RESOURCEGROUPS}/providers/Microsoft.Storage/storageAccounts/{azure_storage_account}"
 
 
-def get_data_source_connection():
+def get_data_source_connection(document_container: str):
     """
     Create a datasource connection
     """
@@ -50,8 +50,10 @@ def get_data_source_connection():
 
 
 try:
-    data_source = get_data_source_connection()
+    data_source = get_data_source_connection(document_container)
+    summary_source = get_data_source_connection(summary_container)
     indexer_client.create_or_update_data_source_connection(data_source)
+    indexer_client.create_or_update_data_source_connection(summary_source)
     logger.info(f"Data source connected: {data_source.name}")
 except Exception as e:
     logger.error(f"Error creating connection to datasource with exception {e}")

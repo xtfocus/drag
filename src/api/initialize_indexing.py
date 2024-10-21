@@ -21,7 +21,8 @@ from src.utils.azure_tools.azure_vector_search import \
     vector_search as chunk_vector_search
 from src.utils.azure_tools.fields import fields as chunk_fields
 
-from .indexing_resource_name import index_name, indexer_name
+from .indexing_resource_name import (index_name, indexer_name,
+                                     summary_index_name, summary_indexer_name)
 
 skill_dict = define_skillset(index_name)
 
@@ -81,4 +82,20 @@ def initialize_document_indexing():
         chunk_semantic_search,
         skill_dict,
         document_data_source,
+    )
+
+
+def initialize_summary_indexing():
+    """
+    Initialize indexing for summarization
+    """
+    # For now use the same search and text skill configuration as of document
+    # Except do no use semantic search
+    return initialize_indexing(
+        summary_index_name,
+        summary_indexer_name,
+        chunk_vector_search,
+        None,
+        skill_dict,
+        summary_data_source,
     )

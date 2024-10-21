@@ -352,3 +352,12 @@ TASK_REPHRASE_TEMPLATE = [
         lambda data: f"Main task: {data['task_description']}\nSubtasks and results: {data['subtasks_results']}",
     ),
 ]
+
+SUMMARY_DOC_PROMPT = (
+    "Describe the content of the document by answering the following questions:\n"
+    "What is the topic of the document?"
+    "Who likely published it?"
+    "Who is it for?"
+    "Provide an approximate table of content."
+    "Finally provide a list of up to 10 quesions that this document can answer."
+)

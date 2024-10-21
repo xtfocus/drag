@@ -56,9 +56,11 @@ async def lifespan(app: fastapi.FastAPI):
         **client_args,
     )
 
-    from .initialize_indexing import initialize_document_indexing
+    from .initialize_indexing import (initialize_document_indexing,
+                                      initialize_summary_indexing)
 
     document_indexing = initialize_document_indexing()
+    summary_indexing = await initialize_summary_indexing()
 
     yield
 
@@ -66,6 +68,9 @@ async def lifespan(app: fastapi.FastAPI):
 
     document_indexing["index_client"].close()
     document_indexing["indexer_client"].close()
+
+    summary_indexing["index_client"].close()
+    summary_indexing["indexer_client"].close()
 
 
 def create_app():

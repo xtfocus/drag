@@ -8,9 +8,10 @@ import os
 
 from loguru import logger
 
-from src.utils.azure_tools.azure_ac_storage import \
-    data_source as document_data_source
-from src.utils.azure_tools.azure_ac_storage import indexer_client
+from src.api.document_summarization import create_summary_blobs
+from src.utils.azure_tools.azure_ac_storage import (document_data_source,
+                                                    indexer_client,
+                                                    summary_data_source)
 from src.utils.azure_tools.azure_index import (create_new_index, delete_index,
                                                index_client)
 from src.utils.azure_tools.azure_indexer import create_new_indexer
@@ -67,6 +68,7 @@ def initialize_indexing(
             )
         except Exception as e:
             logger.error(f"Got error during initialization {e}")
+            raise
 
     return {"index_client": index_client, "indexer_client": indexer_client}
 
@@ -85,12 +87,13 @@ def initialize_document_indexing():
     )
 
 
-def initialize_summary_indexing():
+async def initialize_summary_indexing():
     """
     Initialize indexing for summarization
     """
     # For now use the same search and text skill configuration as of document
     # Except do no use semantic search
+    await create_summary_blobs()
     return initialize_indexing(
         summary_index_name,
         summary_indexer_name,

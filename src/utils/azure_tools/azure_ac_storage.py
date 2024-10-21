@@ -50,10 +50,11 @@ def get_data_source_connection(document_container: str):
 
 
 try:
-    data_source = get_data_source_connection(document_container)
-    summary_source = get_data_source_connection(summary_container)
-    indexer_client.create_or_update_data_source_connection(data_source)
-    indexer_client.create_or_update_data_source_connection(summary_source)
-    logger.info(f"Data source connected: {data_source.name}")
+    document_data_source = get_data_source_connection(document_container)
+    summary_data_source = get_data_source_connection(summary_container)
+    indexer_client.create_or_update_data_source_connection(document_data_source)
+    logger.info(f"Data source connected: {document_data_source.name}")
+    indexer_client.create_or_update_data_source_connection(summary_data_source)
+    logger.info(f"Data source connected: {summary_data_source.name}")
 except Exception as e:
     logger.error(f"Error creating connection to datasource with exception {e}")

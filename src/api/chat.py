@@ -16,10 +16,13 @@ from src.utils.prompting.prompt_data import ConversationalRAGPromptData
 
 from .agent import ChatPriorityPlanner, Planner, ResponseGenerator, Summarizer
 from .globals import clients, history_config
-from .system_prompt import get_kimi_system_prompt
+
+# from .system_prompt import get_kimi_system_prompt
 
 router = APIRouter()
-kimi_system_promtp = get_kimi_system_prompt()
+# kimi_system_promtp = get_kimi_system_prompt()
+
+kimi_system_prompt = ""
 
 
 @router.post("/api/v1/chat_template")
@@ -33,6 +36,9 @@ async def chat_template(chat_request: ChatRequest, stream: bool = False) -> dict
     history = history[-history_config["hard_buffer_limit"] :]
 
     user_input = chat_request.messages[-1]
+
+    if not (kimi_system_prompt):
+        kimi_system_promtp = chat_request.system_prompt
 
     prompt_data = ConversationalRAGPromptData.from_chat_request(
         query=user_input.content,
@@ -86,6 +92,9 @@ async def chat(chat_request: ChatRequest) -> dict:
         dict: A dictionary containing the model's response.
     """
 
+    if not (kimi_system_prompt):
+        kimi_system_promtp = chat_request.system_prompt
+
     try:
         user_input = chat_request.messages[-1]
 
@@ -134,6 +143,9 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
     Returns:
         dict: A dictionary containing the model's response.
     """
+
+    if not (kimi_system_prompt):
+        kimi_system_promtp = chat_request.system_prompt
 
     try:
         user_input = chat_request.messages[-1]

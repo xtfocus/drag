@@ -76,7 +76,6 @@ def create_app():
 
     if not os.getenv("RUNNING_IN_PRODUCTION"):
         env.read_env(".env.local")
-        # logging.basicConfig(level=logging.DEBUG)
 
     app = fastapi.FastAPI(docs_url="/", lifespan=lifespan)
 

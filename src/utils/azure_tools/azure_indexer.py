@@ -48,7 +48,11 @@ def create_new_indexer(
         parameters=None,
     )
 
-    indexer_client.create_or_update_indexer(indexer)
+    try:
+        indexer_client.create_or_update_indexer(indexer)
+    except Exception as e:
+        logger.error(f"Error creating new indexer {indexer_name} {e}")
+        raise
 
     indexer_client.run_indexer(indexer.name)
 

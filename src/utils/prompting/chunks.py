@@ -88,6 +88,8 @@ class Chunks(SearchResults):
             c["key"] = self.chunks[true_index]["key"]
             c["content"] = self.chunks[true_index]["content"]
 
+            c["datePublished"] = self.chunks[true_index].get("datePublished", None)
+
             c["highlight"] = self.chunks[true_index]["highlight"]
             c["meta"] = self.chunks[true_index]["meta"]
 
@@ -106,6 +108,10 @@ class Chunks(SearchResults):
         Numbered chunk content. To be used in a prompt
         """
         return [
-            {"info_no": i + 1, "content": v["content"]}
+            {
+                "info_no": i + 1,
+                "content": v["content"],
+                "datePublished": v.get("datePublished"),
+            }
             for i, v in enumerate(self.chunks)  # Numbering starts from 1
         ]

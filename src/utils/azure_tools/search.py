@@ -87,9 +87,17 @@ def bing_search_wrapper(
     top_results is applied in the end since bing_search filter results after setting answerCount,
     """
     response = bing_search(query, mkt)
-    results = extract_bing_search_results(response)[:top_results]
-    logger.info(f"Bing search returns {len(results)} results")
-    return results
+
+    results = extract_bing_search_results(response)
+
+    logger.info(f"Bing search returns {len(results)} results:\n{results}")
+
+    news = [r for r in results if r["answerType"] == "news"]
+    webPages = [r for r in results if r["answerType"] == "webPages"]
+    selected = news + webPages[:top_results]
+
+    logger.info(f"Selected {len(selected)} results:\n{selected}")
+    return selected
 
 
 def bing_search(
@@ -129,8 +137,6 @@ def bing_search(
         url = f"{endpoint}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
         for k, v in controlled_params.items():
             url += f"&{k}={v}"
-
-        print(url)
 
         response = requests.get(url, headers=headers)
         response.raise_for_status()
@@ -179,6 +185,7 @@ def extract_bing_search_results(results: dict) -> list:
                     "name"
                 ),
                 "category": news_result.get("category"),
+                "datePublished": news_result.get("datePublished"),
             }
         )
 

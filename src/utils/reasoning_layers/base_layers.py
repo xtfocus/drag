@@ -123,15 +123,18 @@ class ExternalContextRetriever(ContextRetriever):
             )
         )
 
+        if not response:
+            return []
+
         response = [
             {
                 "key": r["url"],
-                "content": r["snippet"],
-                "highlight": r["snippet"],
+                "content": r.get("snippet", r.get("name")),
+                "highlight": r.get("snippet", r.get("name")),
                 "meta": {
                     "name": r["name"],
-                    "language": r["language"],
-                    "date": r["datePublished"],
+                    "language": r.get("language", ""),
+                    "datePublished": r.get("datePublished", ""),
                     "answer_type": r["answerType"],
                     "search_type": "external",
                 },

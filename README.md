@@ -1,29 +1,11 @@
-This version is stable. Working on it to extend functionality 
+# Processing documents with visual elements and image-based
 
-The container app still requires user assigned identity and AZURE_CLIENT_ID to be set.
+Visual elements: pictures, charts
+Image-based: pdf that are scanned image
+Others: tables (especially merged cells)
 
-Notice of Change in  chunk_review schema
+My goal now is to create a quick and dirty solution.
 
-Previously:
-"data":
-  - list item:
-    - "info_no"
-    - "review_detail"
-    - "review_score"
-    - "chunk_id"
-    - "chunk"
-    - "highlight"
-    - "title"
-
-New version:
-"data":
-  - list item:
-    - "info_no": (will be removed in the future)
-    - "review_detail"
-    - "review_score"
-    - "key": unique identifier of chunk (internal chunk id OR internet URL). Use this in place of "info_no" in the previous version
-    - "highlight": hit text. To be shown in UI
-    - "content": Full content of chunk (replace "chunk")
-    - "meta": metatadata of chunk
-      - "name": name of the chunk (internal document name OR internet article title)
-      - "search_type": "internal" or "external"
+My goal in the future:
+- create a web app for processing only
+- the ai container app will be for handling chat requests only

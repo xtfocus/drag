@@ -5,8 +5,6 @@ Description : Create a Azure VectorSearch object. To be integrated in an Azure I
 If azure_openai_key is None, the system assigned identity is used
 """
 
-import os
-
 from azure.search.documents.indexes.models import (AzureOpenAIParameters,
                                                    AzureOpenAIVectorizer,
                                                    HnswAlgorithmConfiguration,

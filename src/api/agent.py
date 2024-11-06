@@ -420,7 +420,7 @@ class SingleQueryProcessor:
         context = Chunks(search_result)
 
         logger.info(
-            f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
+            f"SEARCH returned {len(context.chunks)} chunks" + f"\n{context.chunks}"
         )
 
         # Review chunks
@@ -486,7 +486,7 @@ class InternalSingleQueryProcessor:
         context = Chunks(search_result)
 
         logger.info(
-            f"SEARCH found {len(context.chunks)} chunks" + "\n".join(context.chunk_ids)
+            f"SEARCH found {len(context.chunks)} chunks" + f"\n{context.chunks}"
         )
 
         # Review chunks

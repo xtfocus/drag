@@ -42,6 +42,7 @@ def initialize_indexing(
 
         else:
             create_new_index(index_name, chunk_fields, vector_search, semantic_search)
+
         if indexer_name in indexer_client.get_indexer_names():
             logger.info(f"indexer {indexer_name} already exist, skippinng")
         else:
@@ -58,7 +59,7 @@ def initialize_indexing(
             delete_index(index_name)
 
             create_new_index(
-                index_name, chunk_fields, chunk_vector_search, chunk_semantic_search
+                index_name, chunk_fields, vector_search, chunk_semantic_search
             )
             indexer_client.create_or_update_skillset(skill_dict["skillset"])
             create_new_indexer(

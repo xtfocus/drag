@@ -108,6 +108,10 @@ class Chunks(SearchResults):
         Numbered chunk content. To be used in a prompt
         """
         return [
-            {"info_no": i + 1, "content": v["content"], "date": v["meta"].get("date")}
+            {
+                "info_no": i + 1,
+                "content": v["content"],
+                "date": v["meta"].get("datePublished"),
+            }
             for i, v in enumerate(self.chunks)  # Numbering starts from 1
         ]

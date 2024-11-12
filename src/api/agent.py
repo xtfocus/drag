@@ -248,26 +248,34 @@ class PriorityPlanningProcessor:
             search_type="internal",
             search_config=search_config.get("internal"),
         )
-        self.external_query_processor = SingleQueryProcessor(
-            llm,
-            prompt_data=prompt_data,
-            search_type="external",
-            search_config=search_config.get("external"),
-        )
+
+        if "external" in search_config.get("types"):
+            self.external_query_processor = SingleQueryProcessor(
+                llm,
+                prompt_data=prompt_data,
+                search_type="external",
+                search_config=search_config.get("external"),
+            )
         self.evaluator = ContextCompleteEvaluator(llm=llm, prompt_data=prompt_data)
 
     async def process(self):
         first_decision, internal_chunk_review_data = (
             await self.internal_query_processor.process(decide="auto")
         )
-        verdict = await self.evaluator.run()
+        verdict = (
+            await self.evaluator.run()
+        )  # verdict if the chunks suffice and no additional context required
         external_chunk_review_data = []
-        if (not verdict) and (first_decision == "search"):
-            _, external_chunk_review_data = await self.external_query_processor.process(
-                decide="search"
-            )
 
-        self.prompt_data.update({"external_chunk_review": external_chunk_review_data})
+        if hasattr(self, "external_query_processor"):
+            if (not verdict) and (first_decision == "search"):
+                _, external_chunk_review_data = (
+                    await self.external_query_processor.process(decide="search")
+                )
+
+            self.prompt_data.update(
+                {"external_chunk_review": external_chunk_review_data}
+            )
 
         return first_decision, external_chunk_review_data + internal_chunk_review_data
 
@@ -407,7 +415,6 @@ class SingleQueryProcessor:
             return decision, []
 
         if self.search_type == "external":
-
             search_result = self.context_retriever.run(
                 self.prompt_data.query,
             )

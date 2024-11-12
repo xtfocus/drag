@@ -115,6 +115,8 @@ async def chat(chat_request: ChatRequest) -> dict:
             system_prompt=kimi_system_promtp,
         )
 
+        logger.info(f"Search config = {search_config}")
+
         planner = ChatPriorityPlanner(
             client=clients["chat-completion"],
             stream=False,
@@ -158,6 +160,9 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
 
         generate_config = chat_request.generate_config.model_dump()
         search_config = chat_request.search_config.model_dump()
+
+        logger.info(f"Search config = {search_config}")
+
         prompt_data = ConversationalRAGPromptData.from_chat_request(
             query=user_input.content,
             history=history,

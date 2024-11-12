@@ -77,6 +77,7 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "query that clearly reflects the user's intent, "
         "incorporating relevant context from the conversation. "
         "If the query is already complete and obvious in itself, do not rephrase it."
+        "The rephrased query must be in the same language as the original one."
     ),
     conditional_summary_show,
     conditional_recent_messages_show,

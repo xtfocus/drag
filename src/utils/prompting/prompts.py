@@ -50,7 +50,7 @@ conditional_summary_show = conditional_part(
 )
 conditional_recent_messages_show = conditional_part(
     condition=condition_recent_messages_exist,
-    true_part=lambda data: f"Recent messages:\n{data.get('history_text')}\n",
+    true_part=lambda data: f"Recent messages:\n<RECENT MESSAGES START>\n{data.get('history_text')}\n<RECENT MESSAGES END>\n",
     false_part="",
 )
 
@@ -75,9 +75,8 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part(
         "Rephrase the follow-up query to be a standalone "
         "query that clearly reflects the user's intent, "
-        "incorporating relevant context from the conversation. "
-        "If the query is already complete and obvious in itself, do not rephrase it."
-        "The rephrased query must be in the same language as the original one."
+        "incorporating relevant context from the conversation, preserving the tongue (i.e., language) of the follow-up query. The standalone must be terse and precise, similar to a search query"
+        "If the query is already complete and obvious in itself, do not rephrase it, simply repeat the query.\n"
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
@@ -106,23 +105,18 @@ REVIEW_INTERNAL_CONTEXT_COMPLETENESS = [
 
 REVIEW_CHUNKS_PROMPT_TEMPLATE = [
     static_part(
-        "You are an information evaluator. Given a user's query "
-        "from a conversation between the user and an assistant, "
-        "your objective is to select only information chunks "
-        "that directly contribute to answering the given query.\n"
-        "You are provided with several information chunks which might "
-        "or might not contain some usable information. Usable "
-        "information is defined as one that share the same scope and "
-        "precisely answers one or more aspects of the query. Evaluate "
-        "each information chunk by answering the questions: Does the "
-        "chunk contain any usable information? If yes, it should be "
-        "selected. Otherwise, it should be excluded.\n"  # Here we can ask GPTP to even respect the scope of the question
+        "You are an information evaluator. Given a user's query from a conversation "
+        "between the user and an assistant, along with candidate context chunks, "
+        "your objective is to select the chunks that directly contribute to answering "
+        "the query. Selected chunks must contain information that precisely addresses "
+        "one or more aspects of the query."
+        # Here we can ask GPTP to even respect the scope of the question
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
     conditional_user_latest_query,
     static_part(
-        lambda data: f"Following are information chunks for you to review: \n{data.get('formatted_context')}\n"
+        lambda data: f"Following are information chunks for you to evaluate: \n{data.get('formatted_context')}\n"
     ),
     static_part(
         """Structure your output using the following JSON format.
@@ -139,8 +133,8 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
                 }}
             ]
         }}
-        If all chunks are irrelevant, simply return {{'relevant_info': []}} 
         """
+        # If all chunk contain no usable information at all, simply return {{'relevant_info': []}}
     ),
 ]
 external_chunk_review_introduce = static_part(
@@ -175,7 +169,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         condition=lambda data: condition_chunk_review_not_empty(data)
         or condition_external_chunk_review_not_empty(data),
         true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
-        "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet)"
+        "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet). "
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

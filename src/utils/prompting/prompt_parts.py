@@ -44,7 +44,7 @@ def conditional_part(
     )
 
 
-def history_to_text(history: List[Message] | None) -> str:
+def history_to_text(history: List[Message] | None, last: int = 10) -> str:
     """
     Format list of Message objects into conversation_text
 
@@ -56,4 +56,6 @@ def history_to_text(history: List[Message] | None) -> str:
     """
     if not history:
         return ""
+    if last:
+        history = history[-last:]
     return "\n".join([f"{msg.role.value}: {msg.content}" for msg in history]).strip()

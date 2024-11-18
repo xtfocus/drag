@@ -5,6 +5,7 @@ Description : Define specified agents working in coordination to answer user's q
 """
 
 import json
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal
 
 from loguru import logger
@@ -25,6 +26,112 @@ from src.utils.reasoning_layers.base_layers import (BaseAgent,
                                                     InternalContextRetriever)
 
 from .indexing_resource_name import image_index_name, text_index_name
+
+
+class BaseSingleQueryProcessor(ABC):
+    """
+    Abstract base class for processing a single query using either internal or external search tool
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: Any,
+        search_config: Dict[str, Dict[str, Any]],
+    ):
+        self.llm = llm
+        self.prompt_data = prompt_data
+        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
+        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+        self.context_retriever = self._create_context_retriever(search_config)
+
+    @abstractmethod
+    def _create_context_retriever(self, search_config):
+        """Create the appropriate context retriever based on search type"""
+        pass
+
+    async def process(
+        self, decide: Literal["auto", "search", "answer"] = "auto"
+    ) -> tuple:
+        # Common processing logic
+        if decide == "auto":
+            decision = await self.decision_maker.run()
+        else:
+            decision = decide  # search or answer
+
+        if decision == "answer":
+            return decision, []
+
+        # decision == search
+        # Retrieve context
+        search_result = self._run_context_retriever()
+        context = Chunks(search_result)
+        logger.info(
+            f"SEARCH returned {len(context.chunks)} chunks" + f"\n{context.chunks}"
+        )
+
+        # Review chunks
+        self.prompt_data.update({"formatted_context": context.friendly_chunk_view()})
+        chunk_review_str = await self.context_reviewer.run()
+        context.integrate_chunk_review_data(chunk_review_str)
+
+        # Update prompt data with chunk review
+        self._update_prompt_data(context)
+
+        return decision, context.chunk_review
+
+    @abstractmethod
+    def _run_context_retriever(self):
+        """Run the specific context retriever"""
+        pass
+
+    @abstractmethod
+    def _update_prompt_data(self, context):
+        """Update prompt data with context review"""
+        pass
+
+
+class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
+    """
+    Processes a single query using internal search tool
+    """
+
+    def _create_context_retriever(self, search_config):
+        return InternalContextRetriever(search_config=search_config)
+
+    def _run_context_retriever(self):
+        text_index_search_result = self.context_retriever.run(
+            self.prompt_data.query,
+            index_name=text_index_name,
+        )
+        image_index_search_result = self.context_retriever.run(
+            self.prompt_data.query,
+            index_name=image_index_name,
+        )
+
+        return text_index_search_result + image_index_search_result
+
+    def _update_prompt_data(self, context):
+        self.prompt_data.update({"chunk_review": context.friendly_chunk_review_view()})
+
+
+class ExternalSingleQueryProcessor(BaseSingleQueryProcessor):
+    """
+    Processes a single query using external search tool
+    """
+
+    def _create_context_retriever(self, search_config):
+        return ExternalContextRetriever(search_config=search_config)
+
+    def _run_context_retriever(self):
+        return self.context_retriever.run(
+            self.prompt_data.query,
+        )
+
+    def _update_prompt_data(self, context):
+        self.prompt_data.update(
+            {"external_chunk_review": context.friendly_chunk_review_view()}
+        )
 
 
 class Summarizer(BaseAgent):
@@ -199,18 +306,16 @@ class PriorityPlanningProcessor:
 
         self.prompt_data = prompt_data
 
-        self.internal_query_processor = SingleQueryProcessor(
+        self.internal_query_processor = InternalSingleQueryProcessor(
             llm,
             prompt_data=prompt_data,
-            search_type="internal",
             search_config=search_config.get("internal"),
         )
 
         if "external" in search_config.get("types"):
-            self.external_query_processor = SingleQueryProcessor(
+            self.external_query_processor = ExternalSingleQueryProcessor(
                 llm,
                 prompt_data=prompt_data,
-                search_type="external",
                 search_config=search_config.get("external"),
             )
         self.evaluator = ContextCompleteEvaluator(llm=llm, prompt_data=prompt_data)
@@ -276,90 +381,3 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
             response = await self.response_generator.generate_response()
 
         return response, combined_chunks
-
-
-class SingleQueryProcessor:
-    """
-    Processes a single query using either internal or external search tool (but not both), once
-    - decision making (search or not)
-    - search
-    - review
-
-    To replace the InternalSingleQueryProcessor
-    """
-
-    def __init__(
-        self,
-        llm: LLM,
-        prompt_data: Any,
-        search_type: Literal["internal", "external"],
-        search_config: Dict[str, Dict[str, Any]],
-    ):
-        self.llm = llm
-        self.prompt_data = prompt_data
-        self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
-        self.search_type = search_type
-
-        if search_type == "external":
-            self.context_retriever = ExternalContextRetriever(
-                search_config=search_config
-            )
-        else:
-            self.context_retriever = InternalContextRetriever(
-                search_config=search_config
-            )
-
-        self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
-
-    async def process(
-        self, decide: Literal["auto", "search", "answer"] = "auto"
-    ) -> tuple:
-        if decide == "auto":
-            decision = await self.decision_maker.run()
-        else:
-            decision = decide  # search or answer
-
-        if decision == "answer":
-            return decision, []
-
-        if self.search_type == "external":
-            search_result = self.context_retriever.run(
-                self.prompt_data.query,
-            )
-        else:
-            search_result = self.context_retriever.run(
-                self.prompt_data.query,
-                index_name=text_index_name,
-            )
-
-            # extend with image search
-            # image_search_result = self.context_retriever.run(
-            #     self.prompt_data.query,
-            #     index_name=image_index_name,
-            # )
-            # filter only images in the found search result
-
-        context = Chunks(search_result)
-
-        logger.info(
-            f"SEARCH returned {len(context.chunks)} chunks" + f"\n{context.chunks}"
-        )
-
-        # Review chunks
-        self.prompt_data.update({"formatted_context": context.friendly_chunk_view()})
-        chunk_review_str = await self.context_reviewer.run()
-        context.integrate_chunk_review_data(chunk_review_str)
-
-        # Format review result as a string
-        chunk_review_data = context.chunk_review
-
-        if self.search_type == "external":
-            self.prompt_data.update(
-                {"external_chunk_review": context.friendly_chunk_review_view()}
-            )
-        else:
-            self.prompt_data.update(
-                {"chunk_review": context.friendly_chunk_review_view()}
-            )
-
-        return decision, chunk_review_data

@@ -56,16 +56,9 @@ async def lifespan(app: fastapi.FastAPI):
         **client_args,
     )
 
-    from .initialize_indexing import initialize_document_indexing
-
-    document_indexing = initialize_document_indexing()
-
     yield
 
     await clients["chat-completion"].close()
-
-    document_indexing["index_client"].close()
-    document_indexing["indexer_client"].close()
 
 
 def create_app():

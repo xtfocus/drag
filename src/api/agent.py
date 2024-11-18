@@ -27,7 +27,7 @@ from src.utils.reasoning_layers.base_layers import (BaseAgent,
                                                     ExternalContextRetriever,
                                                     InternalContextRetriever)
 
-from .indexing_resource_name import index_name
+from .indexing_resource_name import text_index_name
 
 
 class Summarizer(BaseAgent):
@@ -397,7 +397,6 @@ class SingleQueryProcessor:
                 search_config=search_config
             )
         else:
-
             self.context_retriever = InternalContextRetriever(
                 search_config=search_config
             )
@@ -421,7 +420,7 @@ class SingleQueryProcessor:
         else:
             search_result = self.context_retriever.run(
                 self.prompt_data.query,
-                index_name=index_name,
+                index_name=text_index_name,
             )
 
         context = Chunks(search_result)
@@ -487,7 +486,7 @@ class InternalSingleQueryProcessor:
 
         search_result = self.internal_context_retriever.run(
             self.prompt_data.query,
-            index_name=index_name,
+            index_name=text_index_name,
         )
 
         context = Chunks(search_result)

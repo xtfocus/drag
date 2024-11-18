@@ -1,5 +1,4 @@
 import os
 
-prefix = os.getenv("ENVIRONMENT")  # prod or dev
-index_name = f"{prefix}-index"
-indexer_name = f"{prefix}-indexer"
+text_index_name = os.getenv("TEXT_INDEX_NAME")
+image_index_name = os.getenv("IMAGE_INDEX_NAME")

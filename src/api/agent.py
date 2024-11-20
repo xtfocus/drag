@@ -359,6 +359,7 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
             prompt_data=self.prompt_data,
             template=AUGMENT_QUERY_PROMPT_TEMPLATE,
             generate_config=generate_config,
+            role="system",
         )
 
         self.response_generator = HybridSearchResponseGenerator(

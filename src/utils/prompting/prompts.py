@@ -4,7 +4,13 @@ Author      : tungnx23
 Description : Reusable prompt parts and templates
 """
 
+from datetime import datetime
+
 from src.utils.prompting.prompt_parts import conditional_part, static_part
+
+current_date = datetime.now().strftime("%Y-%m-%d")
+
+TIME_PROMPT = f"Today is {current_date}. "
 
 EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
@@ -20,7 +26,7 @@ FOLLOWUP_PROMPT = ""
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
 instruction_show = (
-    lambda data: f"You are an assistant from the Subaru company. You help users find answers to questions about labor regulation and procedures topics. This is your ultimate instruction: {data.get('system_prompt')}\n"
+    lambda data: f"You are an assistant from the Subaru company. You have access to internal search on internal documents and internet search for user's questions. This is your ultimate instruction: {data.get('system_prompt')}\n"
 )
 
 condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
@@ -65,23 +71,28 @@ conditional_user_latest_query = conditional_part(
     true_part=user_latest_query,
     false_part="",
 )
-
 AUGMENT_QUERY_PROMPT_TEMPLATE = [
-    static_part("An assistant and a user is having a conversation.\n"),
-    static_part("You will be provided with "),
+    static_part(
+        "You are a language expert that helps enhance the clarity of human messages emerged from the conversation. "
+        "Such messages are sometimes not meaningful if taken out of context, but you can rephrase them into "
+        "a standalone version that clearly communicates the human's intent, incorporating the relevant context "
+        "of the conversation while maintaining the tone and language of the message. "
+        "Ensure the standalone version is concise and precise. If the message is already "
+        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message."
+    ),
+    static_part(TIME_PROMPT),
+    static_part(
+        f"An artificial intelligent assistant and a human are engaged in a conversation. You are provided with "
+    ),
     conditional_summary_introduce,
     conditional_recent_messages_introduce,
-    static_part("a follow-up query from the user. "),
     static_part(
-        "Rephrase the follow-up query to be a standalone "
-        "query that clearly reflects the user's intent, "
-        "incorporating relevant context from the conversation, preserving the tongue (i.e., language) of the follow-up query. The standalone must be terse and precise, similar to a search query"
-        "If the query is already complete and obvious in itself, do not rephrase it, simply repeat the query.\n"
+        "the latest message from the human, and you will enhance this message."
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
-    lambda data: f"Follow-up query: {data.get('query')}\n",
-    static_part("Standalone query:"),
+    lambda data: f"\nThe latest message from the human: {data.get('query')}\n",
+    static_part("Your standalone version: "),
 ]
 
 REVIEW_INTERNAL_CONTEXT_COMPLETENESS = [

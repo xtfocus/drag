@@ -13,12 +13,6 @@ from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class MessageRole(str, Enum):
-    USER = "user"
-    SYSTEM = "system"
-    ASSISTANT = "assistant"
-
-
 class SearchType(str, Enum):
     INTERNAL = "internal"
     EXTERNAL = "external"
@@ -184,7 +178,7 @@ class Message(BaseModel):
 
     content: Annotated[str, Field(description="The textual content of the message.")]
     role: Annotated[
-        MessageRole,
+        str,
         Field(
             default="user",
             description='The role of the message sender. Must be one of "user", "system", or "assistant".',

@@ -30,6 +30,7 @@ class BaseAgent:
         template: Any = None,
         stream: bool = False,
         generate_config: Any = None,
+        role: Literal["system", "assistant", "user"] = "system",
     ):
         self.llm = llm
         self.data = prompt_data  # Shareable BasePromptData instance
@@ -37,6 +38,11 @@ class BaseAgent:
         self._prompt: Optional[str] = None
         self._template = template
         self._generate_config = generate_config or dict()
+        self._role = role
+
+    @property
+    def role(self):
+        return self._role
 
     @property
     def generate_config(self):
@@ -69,7 +75,7 @@ class BaseAgent:
         Generate a prompt from the prompt data and invoke the LLM.
         """
         self.prompt = create_prompt(self.data.__dict__, self.template)
-        messages = [Message(content=self.prompt, role="system")]
+        messages = [Message(content=self.prompt, role=self.role)]
 
         self.generate_config.update(kwargs)
 
@@ -85,7 +91,7 @@ class BaseAgent:
     def log(self, response: str):
         delimiter = "\n" + "_" * 20 + "\n"
         logger.info(delimiter + f"AGENT: {self.__class__.__name__}")
-        logger.info(f"INPUT:\n{self.prompt}")
+        logger.info(f"ROLE: {self.role}\nINPUT:\n{self.prompt}")
         logger.info(f"OUTPUT:\n{response}" + delimiter)
 
 

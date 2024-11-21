@@ -26,6 +26,7 @@ def azure_cognitive_search_wrapper(
     top_n: int,
     index_name: str,
     search_text: str | None = None,
+    vector_query: Any = None,  # Incase you already have the vector
     semantic_args: SemanticSearchArgs = SemanticSearchArgs(
         query_type=None,
         query_caption=None,
@@ -59,13 +60,14 @@ def azure_cognitive_search_wrapper(
         azure_search_endpoint, index_name, credential=credential
     )
 
-    # Create a VectorizableTextQuery object for performing vector-based similarity search.
-    vector_query = VectorizableTextQuery(
-        text=query,
-        k_nearest_neighbors=k,
-        fields="vector",
-        exhaustive=True,
-    )
+    if not vector_query:
+        # Create a VectorizableTextQuery object for performing vector-based similarity search.
+        vector_query = VectorizableTextQuery(
+            text=query,
+            k_nearest_neighbors=k,
+            fields="vector",
+            exhaustive=True,
+        )
 
     results = search_client.search(
         search_text=search_text,
@@ -90,7 +92,7 @@ def bing_search_wrapper(
 
     results = extract_bing_search_results(response)
 
-    logger.info(f"Bing search returns {len(results)} results:\n{results}")
+    logger.info(f"Bing search returns {len(results)} results:")
 
     news = [r for r in results if r["answerType"] == "news"]
     webPages = [r for r in results if r["answerType"] == "webPages"]

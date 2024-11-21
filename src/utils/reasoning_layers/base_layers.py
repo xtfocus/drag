@@ -156,10 +156,13 @@ class InternalContextRetriever(ContextRetriever):
     Internal Context Search (Currently Azure Search).
     """
 
-    def run(self, query: str, index_name: str) -> List:
+    def run(
+        self, query: str = None, vector_query: Any = None, index_name: str = None
+    ) -> List:
         response = list(
             azure_cognitive_search_wrapper(
                 query=query,
+                vector_query=vector_query,
                 search_text=query,
                 semantic_args=default_semantic_args,
                 index_name=index_name,

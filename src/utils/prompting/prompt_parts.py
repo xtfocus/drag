@@ -58,4 +58,4 @@ def history_to_text(history: List[Message] | None, last: int = 10) -> str:
         return ""
     if last:
         history = history[-last:]
-    return "\n".join([f"{msg.role.value}: {msg.content}" for msg in history]).strip()
+    return "\n".join([f"{msg.role}: {msg.content}" for msg in history]).strip()

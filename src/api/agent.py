@@ -8,6 +8,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal
 
+from azure.search.documents.models import VectorizableTextQuery
 from loguru import logger
 
 from src.utils.language_models.llms import LLM
@@ -44,6 +45,7 @@ class BaseSingleQueryProcessor(ABC):
         self.decision_maker = QueryAnalyzer(llm=llm, prompt_data=prompt_data)
         self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
         self.context_retriever = self._create_context_retriever(search_config)
+        self.search_config = search_config
 
     @abstractmethod
     def _create_context_retriever(self, search_config):
@@ -66,9 +68,7 @@ class BaseSingleQueryProcessor(ABC):
         # Retrieve context
         search_result = self._run_context_retriever()
         context = Chunks(search_result)
-        logger.info(
-            f"SEARCH returned {len(context.chunks)} chunks" + f"\n{context.chunks}"
-        )
+        logger.info(f"SEARCH returned {len(context.chunks)} chunks")
 
         # Review chunks
         self.prompt_data.update({"formatted_context": context.friendly_chunk_view()})
@@ -100,12 +100,20 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         return InternalContextRetriever(search_config=search_config)
 
     def _run_context_retriever(self):
+        # Create a VectorizableTextQuery object for performing vector-based similarity search.
+        vector_query = VectorizableTextQuery(
+            text=self.prompt_data.query,
+            fields="vector",
+            exhaustive=True,
+            k_nearest_neighbors=int(self.search_config["k"]),
+        )
+
         text_index_search_result = self.context_retriever.run(
-            self.prompt_data.query,
+            vector_query,
             index_name=text_index_name,
         )
         image_index_search_result = self.context_retriever.run(
-            self.prompt_data.query,
+            vector_query,
             index_name=image_index_name,
         )
 
@@ -326,7 +334,7 @@ class PriorityPlanningProcessor:
         )
         verdict = (
             await self.evaluator.run()
-        )  # verdict if the chunks suffice and no additional context required
+        )  # verdict if the internal chunks suffice and no additional context required
         external_chunk_review_data = []
 
         if hasattr(self, "external_query_processor"):
@@ -356,10 +364,10 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
 
         self.rephrase_agent = BaseAgent(
             llm=llm,
-            prompt_data=self.prompt_data,
+            prompt_data=prompt_data,
             template=AUGMENT_QUERY_PROMPT_TEMPLATE,
             generate_config=generate_config,
-            role="system",
+            role="user",
         )
 
         self.response_generator = HybridSearchResponseGenerator(

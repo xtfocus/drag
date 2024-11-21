@@ -5,6 +5,7 @@
 **/.env
 **/.env.*
 **/.azure*
+**/deploy*sh
 # Jupyter Notebook (recursively)
 **/.ipynb_checkpoints
 **/notebooks/**

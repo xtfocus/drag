@@ -23,6 +23,10 @@ SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 # FOLLOWUP_PROMPT = "\nFinally, ask if user had other queries regarding X where X is the general topic in the query. You must mention X explicitly in the leading question."
 FOLLOWUP_PROMPT = ""
 
+LANGUAGE_PROMPT = static_part(
+    "You must answer in Japanese, unless user explicitly requested otherwise"
+)
+
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
 instruction_show = (
@@ -71,6 +75,7 @@ conditional_user_latest_query = conditional_part(
     true_part=user_latest_query,
     false_part="",
 )
+
 AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part(
         "You are a language expert that helps enhance the clarity of human messages emerged from the conversation. "
@@ -78,12 +83,9 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "a standalone version that clearly communicates the human's intent, incorporating the relevant context "
         "of the conversation while maintaining the tone and language of the message. "
         "Ensure the standalone version is concise and precise. If the message is already "
-        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message."
+        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message. Do not change the tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query."
     ),
     static_part(TIME_PROMPT),
-    static_part(
-        f"An artificial intelligent assistant and a human are engaged in a conversation. You are provided with "
-    ),
     conditional_summary_introduce,
     conditional_recent_messages_introduce,
     static_part(
@@ -206,6 +208,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         true_part=static_part(FOLLOWUP_PROMPT),
         false_part=static_part(REDIRECT_PROMPT),
     ),
+    LANGUAGE_PROMPT,
 ]
 
 SEARCH_ANSWER_PROMPT_TEMPLATE = [
@@ -267,6 +270,7 @@ DIRECT_ANSWER_PROMPT_TEMPLATE = [
     conditional_user_latest_query,
     static_part("Provide the user with a final answer. Be concise and direct."),
     static_part(FOLLOWUP_PROMPT),
+    LANGUAGE_PROMPT,
 ]
 
 QUERY_ANALYZER_TEMPLATE = [

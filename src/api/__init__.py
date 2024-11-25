@@ -73,8 +73,8 @@ async def lifespan(app: fastapi.FastAPI):
     yield
 
     await clients["chat-completion"].close()
-    await clients["text-azure-ai-search"].close()
-    await clients["image-azure-ai-search"].close()
+    clients["text-azure-ai-search"].close()
+    clients["image-azure-ai-search"].close()
 
 
 def create_app():

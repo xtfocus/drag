@@ -58,15 +58,19 @@ class BaseSingleQueryProcessor(ABC):
         """Create the appropriate context retriever based on search type"""
         pass
 
-    async def process(
-        self, decide: Literal["auto", "search", "answer"] = "auto"
-    ) -> tuple:
+    async def decide(self, decide: Literal["auto", "search", "answer"] = "auto"):
         # Common processing logic
         if decide == "auto":
             decision = await self.decision_maker.run()
         else:
             decision = decide  # search or answer
 
+        return decision
+
+    async def process(
+        self, decide: Literal["auto", "search", "answer"] = "auto"
+    ) -> tuple:
+        decision = await self.decide(decide)
         if decision == "answer":
             return decision, []
 
@@ -141,12 +145,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         return text_index_search_result, image_index_search_result
 
     async def process(self, decide: Literal["auto", "search", "answer"] = "auto"):
-        # Common processing logic
-        if decide == "auto":
-            decision = await self.decision_maker.run()
-        else:
-            decision = decide  # search or answer
-
+        decision = await self.decide(decide)
         if decision == "answer":
             return decision, []
 
@@ -304,27 +303,6 @@ class HybridSearchResponseGenerator(ResponseGenerator):
         return await self.run()
 
 
-# class ContextReviewer(BaseAgent):
-#     """
-#     Agent for reviewing the usefulness of context chunks.
-#
-#     Args:
-#         llm (LLM): The language model instance.
-#         prompt_data (ConversationalRAGPromptData): Data related to the chunks.
-#         stream (bool): Whether to stream responses. Defaults to False.
-#     """
-#
-#     def __init__(
-#         self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
-#     ):
-#         super().__init__(
-#             llm, prompt_data, template=REVIEW_CHUNKS_PROMPT_TEMPLATE, stream=stream
-#         )
-#
-#     async def run(self) -> str:
-#         return await super().run(response_format={"type": "json_object"})
-#
-#
 class ContextReviewer(BaseAgent):
     """
     Agent for reviewing the usefulness of context chunks. Specified input context name and output name

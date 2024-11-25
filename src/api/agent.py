@@ -108,6 +108,13 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
     So some optimization added
     """
 
+    def __init__(
+        self, llm: LLM, prompt_data: Any, search_config: Dict[str, Dict[str, Any]]
+    ):
+        super().__init__(llm, prompt_data, search_config)
+        self.image_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+        self.text_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+
     def _create_context_retriever(self, search_config):
         return InternalContextRetriever(search_config=search_config)
 
@@ -166,14 +173,14 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             {"formatted_image_context": image_context.friendly_chunk_view()}
         )
 
-        text_chunk_review_str = asyncio.create_task(
-            self.context_reviewer.run("formatted_text_context")
-        )
         logger.info("Reviewing texts ...")
         image_chunk_review_str = asyncio.create_task(
-            self.context_reviewer.run("formatted_image_context")
+            self.image_context_reviewer.run("formatted_image_context")
         )
         logger.info("Reviewing images ...")
+        text_chunk_review_str = asyncio.create_task(
+            self.text_context_reviewer.run("formatted_text_context")
+        )
 
         text_context.integrate_chunk_review_data(await text_chunk_review_str)
         image_context.integrate_chunk_review_data(await image_chunk_review_str)

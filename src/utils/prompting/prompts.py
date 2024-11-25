@@ -136,7 +136,7 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
         {{
         "relevant_info": [
                 {{
-                    "info_no": 1, # Numbering of the information
+                    "info_no": 0, # Numbering of the information, starting from 0
                     "review_detail": <Your brief review> 
                     "review_score": 1, # where 0 means exclusion, 1 means selection
                 }},

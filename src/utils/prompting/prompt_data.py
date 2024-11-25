@@ -59,6 +59,8 @@ class ConversationalRAGPromptData(BasePromptData):
     current_summary: Optional[str] = None
     system_prompt: Optional[str] = None
     formatted_context: Optional[str] = None
+    formatted_text_context: Optional[str] = None
+    formatted_image_context: Optional[str] = None
     chunk_review: Optional[str] = None
     external_chunk_review: Optional[str] = None
 

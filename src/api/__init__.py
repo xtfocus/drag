@@ -10,6 +10,7 @@ import os
 import azure.identity.aio
 import fastapi
 import openai
+from azure.search.documents import SearchClient
 from environs import Env
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +22,11 @@ async def lifespan(app: fastapi.FastAPI):
     """
     Standard FastAPI lifespan definition
     """
+
+    from src.utils.azure_tools.get_credentials import credential
+    from src.utils.azure_tools.get_variables import azure_search_endpoint
+
+    from .indexing_resource_name import image_index_name, text_index_name
 
     history_config["hard_buffer_limit"] = int(os.getenv("HARD_BUFFER_LIMIT", 60))
 
@@ -56,9 +62,19 @@ async def lifespan(app: fastapi.FastAPI):
         **client_args,
     )
 
+    # azure ai search clients
+    clients["text-azure-ai-search"] = SearchClient(
+        azure_search_endpoint, text_index_name, credential=credential
+    )
+    clients["image-azure-ai-search"] = SearchClient(
+        azure_search_endpoint, image_index_name, credential=credential
+    )
+
     yield
 
     await clients["chat-completion"].close()
+    await clients["text-azure-ai-search"].close()
+    await clients["image-azure-ai-search"].close()
 
 
 def create_app():

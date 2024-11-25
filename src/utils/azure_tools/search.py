@@ -6,7 +6,7 @@ It supports pure vector search, hybrid search, and hybrid search with semantic r
 """
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 import requests
 from azure.search.documents import SearchClient
@@ -21,10 +21,10 @@ from src.utils.core_models.models import SemanticSearchArgs
 
 
 def azure_cognitive_search_wrapper(
+    search_client: SearchClient,
     query: str,
     k: int,
     top_n: int,
-    index_name: str,
     search_text: str | None = None,
     vector_query: Any = None,  # Incase you already have the vector
     semantic_args: SemanticSearchArgs = SemanticSearchArgs(
@@ -33,7 +33,7 @@ def azure_cognitive_search_wrapper(
         query_answer=None,
         semantic_configuration_name=None,
     ),
-):
+) -> Iterator:
     """
     Perform a similarity search on text chunks using Azure Cognitive Search.
 
@@ -47,18 +47,13 @@ def azure_cognitive_search_wrapper(
                                                      If specified, enables semantic reranking. Defaults set to None for all parameters
 
     Returns:
-        SearchResults: The search results containing the most similar text chunks, including parent_id, chunk_id, and chunk content.
+        azure.search.documents._paging.SearchItemPaged: This is an Iterator (meaning an one-time Iterable). A list conversion would return a list of search results having: chunk_id, chunk, parent_id, title
 
     Azure search supports three modes:
         - Pure vector search: When only the query is provided, the search is based solely on vector similarity.
         - Hybrid search: When both query and search_text are provided, it combines vector similarity with traditional text search.
         - Hybrid search + Semantic reranking: When search_text is provided along with semantic_args, the results are semantically reranked.
     """
-
-    # Initialize the Azure SearchClient with the provided endpoint, index name, and credentials.
-    search_client = SearchClient(
-        azure_search_endpoint, index_name, credential=credential
-    )
 
     if not vector_query:
         # Create a VectorizableTextQuery object for performing vector-based similarity search.
@@ -69,15 +64,13 @@ def azure_cognitive_search_wrapper(
             exhaustive=True,
         )
 
-    results = search_client.search(
+    return search_client.search(
         search_text=search_text,
         vector_queries=[vector_query],
         select=["parent_id", "chunk_id", "chunk", "title"],
         top=top_n,
         **semantic_args.model_dump(),
     )
-
-    return results
 
 
 def bing_search_wrapper(

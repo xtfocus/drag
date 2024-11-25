@@ -4,8 +4,10 @@ Author      : tungnx23
 Description : Define specified agents working in coordination to answer user's query. Planner is the master agent.
 """
 
+import asyncio
 import json
 from abc import ABC, abstractmethod
+from concurrent.futures import ProcessPoolExecutor
 from typing import Any, Dict, Literal
 
 from azure.search.documents.models import VectorizableTextQuery
@@ -26,12 +28,15 @@ from src.utils.reasoning_layers.base_layers import (BaseAgent,
                                                     ExternalContextRetriever,
                                                     InternalContextRetriever)
 
-from .indexing_resource_name import image_index_name, text_index_name
+from .globals import clients
 
 
 class BaseSingleQueryProcessor(ABC):
     """
-    Abstract base class for processing a single query using either internal or external search tool
+    Abstract base class for processing a single query using a chain of
+        - decision_maker
+        - context_retriever: either internal or external search tool
+        - context_reviewer
     """
 
     def __init__(
@@ -46,6 +51,7 @@ class BaseSingleQueryProcessor(ABC):
         self.context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
         self.context_retriever = self._create_context_retriever(search_config)
         self.search_config = search_config
+        self.prompt_data.chunk_review = []
 
     @abstractmethod
     def _create_context_retriever(self, search_config):
@@ -93,7 +99,9 @@ class BaseSingleQueryProcessor(ABC):
 
 class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
     """
-    Processes a single query using internal search tool
+    BaseSingleQueryProcessor using internal search tool
+    Using both image search and text search.
+    So some optimization added
     """
 
     def _create_context_retriever(self, search_config):
@@ -108,19 +116,80 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             k_nearest_neighbors=int(self.search_config["k"]),
         )
 
-        text_index_search_result = self.context_retriever.run(
-            vector_query,
-            index_name=text_index_name,
-        )
-        image_index_search_result = self.context_retriever.run(
-            vector_query,
-            index_name=image_index_name,
+        # Use ProcessPoolExecutor to run searches in parallel
+        with ProcessPoolExecutor(max_workers=2) as executor:
+            # Submit search tasks
+            text_future = executor.submit(
+                self.context_retriever.run,
+                query=self.prompt_data.query,
+                search_client=clients["text-azure-ai-search"],
+                vector_query=vector_query,
+            )
+
+            image_future = executor.submit(
+                self.context_retriever.run,
+                query=self.prompt_data.query,
+                search_client=clients["image-azure-ai-search"],
+                vector_query=vector_query,
+            )
+
+            # Wait for and retrieve results
+            text_index_search_result = text_future.result()
+            image_index_search_result = image_future.result()
+
+        # Combine and return results
+        return text_index_search_result, image_index_search_result
+
+    async def process(self, decide: Literal["auto", "search", "answer"] = "auto"):
+        # Common processing logic
+        if decide == "auto":
+            decision = await self.decision_maker.run()
+        else:
+            decision = decide  # search or answer
+
+        if decision == "answer":
+            return decision, []
+
+        # decision == search
+        # Retrieve context
+        text_search_result, image_search_result = self._run_context_retriever()
+        text_context = Chunks(text_search_result)
+        image_context = Chunks(image_search_result)
+        logger.info(f"Text SEARCH returned {len(text_context.chunks)} chunks")
+        logger.info(f"Image SEARCH returned {len(image_context.chunks)} chunks")
+
+        # Review chunks
+        self.prompt_data.update(
+            {"formatted_text_context": text_context.friendly_chunk_view()}
         )
 
-        return text_index_search_result + image_index_search_result
+        self.prompt_data.update(
+            {"formatted_image_context": image_context.friendly_chunk_view()}
+        )
+
+        text_chunk_review_str = asyncio.create_task(
+            self.context_reviewer.run("formatted_text_context")
+        )
+        logger.info("Reviewing texts ...")
+        image_chunk_review_str = asyncio.create_task(
+            self.context_reviewer.run("formatted_image_context")
+        )
+        logger.info("Reviewing images ...")
+
+        text_context.integrate_chunk_review_data(await text_chunk_review_str)
+        image_context.integrate_chunk_review_data(await image_chunk_review_str)
+
+        # Update prompt data with chunk review
+        self._update_prompt_data(image_context)
+        self._update_prompt_data(text_context)
+
+        return (
+            decision,
+            text_context.chunk_review + image_context.chunk_review,
+        )
 
     def _update_prompt_data(self, context):
-        self.prompt_data.update({"chunk_review": context.friendly_chunk_review_view()})
+        self.prompt_data.chunk_review += context.friendly_chunk_review_view()
 
 
 class ExternalSingleQueryProcessor(BaseSingleQueryProcessor):
@@ -235,9 +304,30 @@ class HybridSearchResponseGenerator(ResponseGenerator):
         return await self.run()
 
 
+# class ContextReviewer(BaseAgent):
+#     """
+#     Agent for reviewing the usefulness of context chunks.
+#
+#     Args:
+#         llm (LLM): The language model instance.
+#         prompt_data (ConversationalRAGPromptData): Data related to the chunks.
+#         stream (bool): Whether to stream responses. Defaults to False.
+#     """
+#
+#     def __init__(
+#         self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+#     ):
+#         super().__init__(
+#             llm, prompt_data, template=REVIEW_CHUNKS_PROMPT_TEMPLATE, stream=stream
+#         )
+#
+#     async def run(self) -> str:
+#         return await super().run(response_format={"type": "json_object"})
+#
+#
 class ContextReviewer(BaseAgent):
     """
-    Agent for reviewing the usefulness of context chunks.
+    Agent for reviewing the usefulness of context chunks. Specified input context name and output name
 
     Args:
         llm (LLM): The language model instance.
@@ -252,7 +342,8 @@ class ContextReviewer(BaseAgent):
             llm, prompt_data, template=REVIEW_CHUNKS_PROMPT_TEMPLATE, stream=stream
         )
 
-    async def run(self) -> str:
+    async def run(self, input_context_name: str = "formatted_context") -> str:
+        self.data.formatted_context = getattr(self.data, input_context_name)
         return await super().run(response_format={"type": "json_object"})
 
 

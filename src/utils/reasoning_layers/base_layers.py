@@ -5,6 +5,7 @@ Building blocks for creating agents
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Literal, Optional
 
+from azure.search.documents import SearchClient
 from loguru import logger
 
 from src.utils.azure_tools.azure_semantic_search import default_semantic_args
@@ -157,15 +158,18 @@ class InternalContextRetriever(ContextRetriever):
     """
 
     def run(
-        self, query: str = None, vector_query: Any = None, index_name: str = None
+        self,
+        search_client: SearchClient,
+        query: str = None,
+        vector_query: Any = None,
     ) -> List:
         response = list(
             azure_cognitive_search_wrapper(
+                search_client,
                 query=query,
                 vector_query=vector_query,
                 search_text=query,
                 semantic_args=default_semantic_args,
-                index_name=index_name,
                 **self._search_config,
             )
         )

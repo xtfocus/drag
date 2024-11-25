@@ -130,6 +130,7 @@ async def chat(chat_request: ChatRequest) -> dict:
         return {"message": ai_message, "chunk_review": chunk_review}
 
     except Exception as e:
+        raise
         logger.error(f"Error in chat handler: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 

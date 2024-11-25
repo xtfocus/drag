@@ -62,7 +62,7 @@ class Chunks(SearchResults):
         {
             "relevant_info": [
                 {
-                    "info_no": 1,
+                    "info_no": 0,
                     "review_score": 0,
                     "review_detail": "abcxyz"
                 }
@@ -84,7 +84,7 @@ class Chunks(SearchResults):
         result = sorted(chunk_review_dicts, key=lambda x: x["info_no"])
 
         for c in result:
-            true_index = c["info_no"] - 1  # Normalize numbering back to 0-indexed
+            true_index = c["info_no"]
             c["key"] = self.chunks[true_index]["key"]
             c["content"] = self.chunks[true_index]["content"]
 
@@ -109,9 +109,9 @@ class Chunks(SearchResults):
         """
         return [
             {
-                "info_no": i + 1,
+                "info_no": i,
                 "content": v["content"],
                 "date": v["meta"].get("datePublished"),
             }
-            for i, v in enumerate(self.chunks)  # Numbering starts from 1
+            for i, v in enumerate(self.chunks)  # Numbering starts from 0
         ]

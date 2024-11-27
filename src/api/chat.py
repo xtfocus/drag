@@ -125,12 +125,13 @@ async def chat(chat_request: ChatRequest) -> dict:
             prompt_data=prompt_data,
         )
 
-        ai_message, chunk_review = await planner.run()
+        planner_output = await planner.run()
+        ai_message = planner_output["response"]
+        chunk_review = planner_output["chunks"]
 
         return {"message": ai_message, "chunk_review": chunk_review}
 
     except Exception as e:
-        raise
         logger.error(f"Error in chat handler: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -184,7 +185,10 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
             """
             Generator for streaming
             """
-            chat_coroutine, chunk_review = await planner.run()
+
+            planner_output = await planner.run()
+            chat_coroutine = planner_output["response"]
+            chunk_review = planner_output["chunks"]
 
             # Stream the response content
             async for event in chat_coroutine:

@@ -64,10 +64,11 @@ def azure_cognitive_search_wrapper(
             exhaustive=True,
         )
 
+    # Return an Iterator of the search chunks
     return search_client.search(
         search_text=search_text,
         vector_queries=[vector_query],
-        select=["parent_id", "chunk_id", "chunk", "title"],
+        select=["parent_id", "chunk_id", "chunk", "title", "metadata"],
         top=top_n,
         **semantic_args.model_dump(),
     )

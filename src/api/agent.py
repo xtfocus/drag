@@ -58,7 +58,7 @@ class BaseSingleQueryProcessor(ABC):
         """Create the appropriate context retriever based on search type"""
         pass
 
-    async def decide(self, decide: Literal["auto", "search", "answer"] = "auto"):
+    async def decide(self, decide: Literal["auto", "search", "answer"] = "auto") -> str:
         # Common processing logic
         if decide == "auto":
             decision = await self.decision_maker.run()
@@ -69,10 +69,10 @@ class BaseSingleQueryProcessor(ABC):
 
     async def process(
         self, decide: Literal["auto", "search", "answer"] = "auto"
-    ) -> tuple:
+    ) -> Dict[str, Any]:
         decision = await self.decide(decide)
         if decision == "answer":
-            return decision, []
+            return {"decision": decision, "chunks-review": []}
 
         # decision == search
         # Retrieve context
@@ -88,7 +88,7 @@ class BaseSingleQueryProcessor(ABC):
         # Update prompt data with chunk review
         self._update_prompt_data(context)
 
-        return decision, context.chunk_review
+        return {"decision": decision, "chunks-review": context.chunk_review}
 
     @abstractmethod
     def _run_context_retriever(self):
@@ -149,16 +149,22 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             image_index_search_result = image_future.result()
 
         # Combine and return results
-        return text_index_search_result, image_index_search_result
+        return {
+            "text-index-search-result": text_index_search_result,
+            "image-index-search-result": image_index_search_result,
+        }
 
     async def process(self, decide: Literal["auto", "search", "answer"] = "auto"):
         decision = await self.decide(decide)
         if decision == "answer":
-            return decision, []
+            return {"decision": decision, "chunks-review": []}
 
         # decision == search
         # Retrieve context
-        text_search_result, image_search_result = self._run_context_retriever()
+        search_result = self._run_context_retriever()
+        text_search_result = search_result["text-index-search-result"]
+        image_search_result = search_result["image-index-search-result"]
+
         text_context = Chunks(text_search_result)
         image_context = Chunks(image_search_result)
         logger.info(f"Text SEARCH returned {len(text_context.chunks)} chunks")
@@ -189,10 +195,10 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         self._update_prompt_data(image_context)
         self._update_prompt_data(text_context)
 
-        return (
-            decision,
-            text_context.chunk_review + image_context.chunk_review,
-        )
+        return {
+            "decision": decision,
+            "chunks-review": text_context.chunk_review + image_context.chunk_review,
+        }
 
     def _update_prompt_data(self, context):
         self.prompt_data.chunk_review += context.friendly_chunk_review_view()
@@ -405,9 +411,12 @@ class PriorityPlanningProcessor:
         self.evaluator = ContextCompleteEvaluator(llm=llm, prompt_data=prompt_data)
 
     async def process(self):
-        first_decision, internal_chunk_review_data = (
-            await self.internal_query_processor.process(decide="auto")
+        internal_query_processor_output = await self.internal_query_processor.process(
+            decide="auto"
         )
+        first_decision = internal_query_processor_output["decision"]
+        internal_chunk_review_data = internal_query_processor_output["chunks-review"]
+
         verdict = (
             await self.evaluator.run()
         )  # verdict if the internal chunks suffice and no additional context required
@@ -415,15 +424,21 @@ class PriorityPlanningProcessor:
 
         if hasattr(self, "external_query_processor"):
             if (not verdict) and (first_decision == "search"):
-                _, external_chunk_review_data = (
+                external_query_processor_output = (
                     await self.external_query_processor.process(decide="search")
                 )
+                external_chunk_review_data = external_query_processor_output[
+                    "chunks-review"
+                ]
 
             self.prompt_data.update(
                 {"external_chunk_review": external_chunk_review_data}
             )
 
-        return first_decision, external_chunk_review_data + internal_chunk_review_data
+        return {
+            "decision": first_decision,
+            "chunks-review": external_chunk_review_data + internal_chunk_review_data,
+        }
 
 
 class ChatPriorityPlanner(PriorityPlanningProcessor):
@@ -459,10 +474,13 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         query = await self.rephrase_agent.run()
         self.prompt_data.update({"query": query})
 
-        decision, combined_chunks = await self.process()
+        process_output = await self.process()
+        decision = process_output["decision"]
+        combined_chunks = process_output["chunks-review"]
+
         if decision == "answer":
             response = await self.response_generator.direct_answer()
         else:
             response = await self.response_generator.generate_response()
 
-        return response, combined_chunks
+        return {"response": response, "chunks": combined_chunks}

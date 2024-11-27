@@ -2,8 +2,9 @@
 Building blocks for creating agents
 """
 
+import json
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from azure.search.documents import SearchClient
 from loguru import logger
@@ -160,20 +161,19 @@ class InternalContextRetriever(ContextRetriever):
     def run(
         self,
         search_client: SearchClient,
-        query: str = None,
+        query: str = "",
         vector_query: Any = None,
-    ) -> List:
-        response = list(
-            azure_cognitive_search_wrapper(
-                search_client,
-                query=query,
-                vector_query=vector_query,
-                search_text=query,
-                semantic_args=default_semantic_args,
-                **self._search_config,
-            )
+    ) -> List[Dict[str, Any]]:
+        response_iterator: Iterator = azure_cognitive_search_wrapper(
+            search_client,
+            query=query,
+            vector_query=vector_query,
+            search_text=query,
+            semantic_args=default_semantic_args,
+            **self._search_config,
         )
 
+        # Parsing Azure AI Search results
         response = [
             {
                 "key": r["chunk_id"],
@@ -183,9 +183,10 @@ class InternalContextRetriever(ContextRetriever):
                     "title": r["title"],
                     "parent_id": r["parent_id"],
                     "search_type": "internal",
+                    "page_range": json.loads(json.loads(r["metadata"]))["page_range"],
                 },
             }
-            for r in response
+            for r in response_iterator
         ]
 
         return response

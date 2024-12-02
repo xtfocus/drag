@@ -7,7 +7,6 @@ Description : Define lifespan variables used by app
 import contextlib
 import os
 
-import azure.identity.aio
 import fastapi
 import openai
 from azure.search.documents import SearchClient
@@ -31,26 +30,7 @@ async def lifespan(app: fastapi.FastAPI):
     history_config["hard_buffer_limit"] = int(os.getenv("HARD_BUFFER_LIMIT", 60))
 
     client_args = {}
-    # Use an Azure OpenAI endpoint instead,
-    # either with a key or with keyless authentication
-    if os.getenv("AZURE_OPENAI_KEY"):
-        # This is generally discouraged, but is provided for developers
-        # that want to develop locally inside the Docker container.
-        client_args["api_key"] = os.getenv("AZURE_OPENAI_KEY")
-    else:
-        if client_id := os.getenv("AZURE_OPENAI_CLIENT_ID"):
-            default_credential = azure.identity.aio.ManagedIdentityCredential(
-                client_id=client_id
-            )
-        else:
-            default_credential = azure.identity.aio.DefaultAzureCredential(
-                exclude_shared_token_cache_credential=True
-            )
-        client_args["azure_ad_token_provider"] = (
-            azure.identity.aio.get_bearer_token_provider(
-                default_credential, "https://cognitiveservices.azure.com/.default"
-            )
-        )
+    client_args["api_key"] = os.getenv("AZURE_OPENAI_KEY")
 
     # Initialize chat client
     client_args["timeout"] = float(os.getenv("OPENAI_TIMEOUT", 60))

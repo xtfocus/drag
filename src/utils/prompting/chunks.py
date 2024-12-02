@@ -100,7 +100,7 @@ class Chunks(SearchResults):
         """
         Chunk review content. To be used in a prompt
         """
-        keys_to_keep = ["content", "review_score", "review_detail"]
+        keys_to_keep = ["content", "datePublished", "meta"]
         return [{key: item[key] for key in keys_to_keep} for item in self.chunk_review]
 
     def friendly_chunk_view(self):
@@ -111,6 +111,7 @@ class Chunks(SearchResults):
             {
                 "info_no": i,
                 "content": v["content"],
+                "title": v["meta"].get("title"),
                 "date": v["meta"].get("datePublished"),
             }
             for i, v in enumerate(self.chunks)  # Numbering starts from 0

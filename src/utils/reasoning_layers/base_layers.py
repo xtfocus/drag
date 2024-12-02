@@ -189,4 +189,9 @@ class InternalContextRetriever(ContextRetriever):
             for r in response_iterator
         ]
 
+        if response:
+            logger.info(
+                "Found context in "
+                + "\n".join(set(r["meta"]["title"] for r in response))
+            )
         return response

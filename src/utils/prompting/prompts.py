@@ -24,7 +24,7 @@ SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 FOLLOWUP_PROMPT = ""
 
 LANGUAGE_PROMPT = static_part(
-    "You must answer in Japanese, unless user explicitly requested otherwise"
+    " You must answer in Japanese, unless user explicitly requested otherwise"
 )
 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
@@ -121,9 +121,10 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
         "You are an information evaluator. Given a user's query from a conversation "
         "between the user and an assistant, along with candidate context chunks, "
         "your objective is to select the chunks that directly contribute to answering "
-        "the query. Selected chunks must contain information that precisely addresses "
-        "one or more aspects of the query."
-        # Here we can ask GPTP to even respect the scope of the question
+        "the query. Selected chunks must contain information that:\n"
+        "- has the EXACT scope as of the query. Hint: scan for relevant entities, titles, or time spans\n"
+        "- precisely addresses one or more aspects of the query.\n"
+        "If some chunks contains conflict information, remove chunks having inappropriate scope. "
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
@@ -137,7 +138,7 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
         "relevant_info": [
                 {{
                     "info_no": 0, # Numbering of the information, starting from 0
-                    "review_detail": <Your brief review> 
+                    "review_detail": <Your brief review regarding scope and relevance> 
                     "review_score": 1, # where 0 means exclusion, 1 means selection
                 }},
                 {{
@@ -183,6 +184,10 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         or condition_external_chunk_review_not_empty(data),
         true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
         "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet). "
+        "For every fact in internal knowledge section, ensure you make reference to enhance the answer's reliability. Use the following formats:\n"
+        "  - In-text citation: Include references within the sentence, e.g., According to Document ABC,...\n"
+        "  - Bracketed reference: Add details inline, e.g., [source: source document name]\n"
+        "If some chunks conflict, priotize ones that better fit the scope of the query. "
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

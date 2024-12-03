@@ -15,7 +15,6 @@ azure_openai_embedding_dimensions = int(
 embedding_model_name = os.getenv("AZURE_OPENAI_MODEL_NAME")
 azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
 document_container = os.getenv("AZURE_STORAGE_CONTAINER")
-summary_container = os.getenv("AZURE_SUMMARY_CONTAINER")
 azure_openai_model_name = os.getenv("AZURE_OPENAI_MODEL_NAME", "text-embedding-3-large")
 algorithm_configuration_name = os.getenv("ALGORITHM_CONFIGURATION_NAME", "myHnsw")
 vector_search_profile_name = os.getenv("VECTOR_SEARCH_PROFILE_NAME", "myHnswProfile")

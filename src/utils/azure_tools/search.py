@@ -33,6 +33,7 @@ def azure_cognitive_search_wrapper(
         query_answer=None,
         semantic_configuration_name=None,
     ),
+    **kwargs,
 ) -> Iterator:
     """
     Perform a similarity search on text chunks using Azure Cognitive Search.
@@ -68,7 +69,13 @@ def azure_cognitive_search_wrapper(
     return search_client.search(
         search_text=search_text,
         vector_queries=[vector_query],
-        select=["parent_id", "chunk_id", "chunk", "title", "metadata"],
+        select=[
+            "parent_id",
+            "chunk_id",
+            "chunk",
+            "title",
+            "metadata",
+        ],
         top=top_n,
         **semantic_args.model_dump(),
     )

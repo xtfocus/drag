@@ -116,3 +116,24 @@ class Chunks(SearchResults):
             }
             for i, v in enumerate(self.chunks)  # Numbering starts from 0
         ]
+
+    def friendly_chunk_view_with_doc_summary(self, doc_summaries: Dict):
+        """
+        Numbered chunk content. To be used in a prompt
+        doc_summaries: Dict mapping document titles to summary content
+        """
+        result = ""
+        for title, summary in doc_summaries.items():
+            doc_chunks = [
+                {
+                    "info_no": i,
+                    "content": v["content"],
+                    "title": v["meta"].get("title"),
+                    "date": v["meta"].get("datePublished"),
+                }
+                for i, v in enumerate(self.chunks)
+                if v["meta"].get("title") == title
+            ]
+            if doc_chunks:
+                result += f"---\nDOCUMENT: {title}\nSUMMARY: {summary}\nCHUNKS: {doc_chunks}\n\nEND DOCUMENT\n---"
+        return result

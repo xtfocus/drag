@@ -184,9 +184,9 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         or condition_external_chunk_review_not_empty(data),
         true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
         "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet). "
-        "For every fact in internal knowledge section, ensure you make reference to enhance the answer's reliability. Use the following formats:\n"
+        "For each fact, ensure you make reference to enhance the answer's reliability. Use the following formats:\n"
         "  - In-text citation: Include references within the sentence, e.g., According to Document ABC,...\n"
-        "  - Bracketed reference: Add details inline, e.g., [source: source document name]\n"
+        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: source's title]\n"
         "If some chunks conflict, priotize ones that better fit the scope of the query. "
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",

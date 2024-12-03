@@ -25,7 +25,8 @@ async def lifespan(app: fastapi.FastAPI):
     from src.utils.azure_tools.get_credentials import credential
     from src.utils.azure_tools.get_variables import azure_search_endpoint
 
-    from .indexing_resource_name import image_index_name, text_index_name
+    from .indexing_resource_name import (image_index_name, summary_index_name,
+                                         text_index_name)
 
     history_config["hard_buffer_limit"] = int(os.getenv("HARD_BUFFER_LIMIT", 60))
 
@@ -49,6 +50,9 @@ async def lifespan(app: fastapi.FastAPI):
     clients["image-azure-ai-search"] = SearchClient(
         azure_search_endpoint, image_index_name, credential=credential
     )
+    clients["summary-azure-ai-search"] = SearchClient(
+        azure_search_endpoint, summary_index_name, credential=credential
+    )
 
     yield
 
@@ -64,7 +68,7 @@ def create_app():
     env = Env()
 
     if not os.getenv("RUNNING_IN_PRODUCTION"):
-        env.read_env(".env.local")
+        env.read_env(".env.dev")
 
     app = fastapi.FastAPI(docs_url="/", lifespan=lifespan)
 

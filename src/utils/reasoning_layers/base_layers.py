@@ -163,6 +163,7 @@ class InternalContextRetriever(ContextRetriever):
         search_client: SearchClient,
         query: str = "",
         vector_query: Any = None,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         response_iterator: Iterator = azure_cognitive_search_wrapper(
             search_client,
@@ -184,6 +185,7 @@ class InternalContextRetriever(ContextRetriever):
                     "parent_id": r["parent_id"],
                     "search_type": "internal",
                     "page_range": json.loads(json.loads(r["metadata"]))["page_range"],
+                    "@search.reranker_score": r["@search.reranker_score"],
                 },
             }
             for r in response_iterator

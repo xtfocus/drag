@@ -54,7 +54,7 @@ class BaseSingleQueryProcessor(ABC):
         self.prompt_data.chunk_review = []
 
     @abstractmethod
-    def _create_context_retriever(self, search_config):
+    def _create_context_retriever(self, search_config) -> Any:
         """Create the appropriate context retriever based on search type"""
         pass
 
@@ -91,7 +91,7 @@ class BaseSingleQueryProcessor(ABC):
         return {"decision": decision, "chunks-review": context.chunk_review}
 
     @abstractmethod
-    def _run_context_retriever(self):
+    def _run_context_retriever(self) -> Any:
         """Run the specific context retriever"""
         pass
 
@@ -113,6 +113,9 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
     ):
         super().__init__(llm, prompt_data, search_config)
         self.image_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
+        self.summary_context_reviewer = ContextReviewer(
+            llm=llm, prompt_data=prompt_data
+        )
         self.text_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
 
     def _create_context_retriever(self, search_config):
@@ -144,14 +147,22 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
                 vector_query=vector_query,
             )
 
+            summary_future = executor.submit(
+                self.context_retriever.run,
+                query=self.prompt_data.query,
+                search_client=clients["summary-azure-ai-search"],
+                vector_query=vector_query,
+            )
+
             # Wait for and retrieve results
             text_index_search_result = text_future.result()
             image_index_search_result = image_future.result()
-
+            summary_index_search_result = summary_future.result()
         # Combine and return results
         return {
             "text-index-search-result": text_index_search_result,
             "image-index-search-result": image_index_search_result,
+            "summary-index-search-result": summary_index_search_result,
         }
 
     async def process(self, decide: Literal["auto", "search", "answer"] = "auto"):
@@ -164,36 +175,106 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         search_result = self._run_context_retriever()
         text_search_result = search_result["text-index-search-result"]
         image_search_result = search_result["image-index-search-result"]
+        summary_search_result = search_result["summary-index-search-result"]
 
-        text_context = Chunks(text_search_result)
-        image_context = Chunks(image_search_result)
-        logger.info(f"Text SEARCH returned {len(text_context.chunks)} chunks")
-        logger.info(f"Image SEARCH returned {len(image_context.chunks)} chunks")
+        logger.info(f"Text SEARCH returned {len(text_search_result)} chunks")
+        logger.info(f"Image SEARCH returned {len(image_search_result)} chunks")
 
-        # Review chunks
-        self.prompt_data.update(
-            {"formatted_text_context": text_context.friendly_chunk_view()}
+        # Filtering based on summary_search_result
+        summary_search_result = sorted(
+            summary_search_result,
+            key=lambda x: x["meta"]["@search.reranker_score"],
+            reverse=True,
+        )[
+            :10  # Hard code the number of documents to be considered for filtering context
+        ]
+        logger.info(
+            {
+                i["meta"]["title"]: i["meta"]["@search.reranker_score"]
+                for i in summary_search_result
+            }
         )
 
+        selected_titles = set(t["meta"]["title"] for t in summary_search_result)
+        logger.info(f"Selected documents: {selected_titles}")
+        image_search_result = [
+            i for i in image_search_result if i["meta"]["title"] in selected_titles
+        ]
+
+        text_search_result = [
+            i for i in text_search_result if i["meta"]["title"] in selected_titles
+        ]
+        logger.info(
+            f"Text SEARCH Filtered round 1: {len(text_search_result)} chunks:\n"
+            + "\n".join(
+                [f"{i['meta']['title']}:{i['key']}" for i in text_search_result]
+            )
+        )
+        logger.info(
+            f"Image SEARCH Filtered round 1: {len(image_search_result)} chunks:\n"
+            + "\n".join(
+                [f"{i['meta']['title']}:{i['key']}" for i in image_search_result]
+            )
+        )
+
+        # Create Chunks objet
+        text_context = Chunks(text_search_result)
+        image_context = Chunks(image_search_result)
+
+        # Review chunks
+        doc_summary_mapping = {
+            t["meta"]["title"]: t["content"] for t in summary_search_result
+        }
+
         self.prompt_data.update(
-            {"formatted_image_context": image_context.friendly_chunk_view()}
+            {
+                "formatted_text_context": text_context.friendly_chunk_view_with_doc_summary(
+                    doc_summary_mapping
+                )
+            }
+        )
+        self.prompt_data.update(
+            {
+                "formatted_image_context": image_context.friendly_chunk_view_with_doc_summary(
+                    doc_summary_mapping
+                )
+            }
         )
 
         logger.info("Reviewing texts ...")
+
+        # We can also review multiple documents at the same time, each time both images and texts are reviewed
+        # Here we review images and texts separately, although there's no specific reasons why that's better
+        # Will create a branch here to implement the multiple documents idea.
+
         image_chunk_review_str = asyncio.create_task(
             self.image_context_reviewer.run("formatted_image_context")
         )
+
         logger.info("Reviewing images ...")
         text_chunk_review_str = asyncio.create_task(
             self.text_context_reviewer.run("formatted_text_context")
         )
 
+        # summary_context.integrate_chunk_review_data(await summary_chunk_review_str)
         text_context.integrate_chunk_review_data(await text_chunk_review_str)
         image_context.integrate_chunk_review_data(await image_chunk_review_str)
 
         # Update prompt data with chunk review
         self._update_prompt_data(image_context)
         self._update_prompt_data(text_context)
+        logger.info(
+            f"Text REVIEW Filtered: {len(text_context.chunk_review)} chunks:\n"
+            + "\n".join(
+                [f"{i['meta']['title']}:{i['key']}" for i in text_context.chunk_review]
+            )
+        )
+        logger.info(
+            f"Image REVIEW Filtered: {len(image_context.chunk_review)} chunks:\n"
+            + "\n".join(
+                [f"{i['meta']['title']}:{i['key']}" for i in image_context.chunk_review]
+            )
+        )
 
         return {
             "decision": decision,
@@ -482,5 +563,13 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
             response = await self.response_generator.direct_answer()
         else:
             response = await self.response_generator.generate_response()
+
+        if combined_chunks:
+            logger.info(
+                f"Return chunks:\n"
+                + "\n".join(
+                    [f"{i['meta']['title']}:{i['key']}" for i in combined_chunks]
+                )
+            )
 
         return {"response": response, "chunks": combined_chunks}

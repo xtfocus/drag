@@ -10,6 +10,7 @@ import os
 import fastapi
 import openai
 from azure.search.documents import SearchClient
+from azure.storage.blob import BlobServiceClient
 from environs import Env
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +23,7 @@ async def lifespan(app: fastapi.FastAPI):
     Standard FastAPI lifespan definition
     """
 
+    from src.utils.azure_tools.azure_blob_service import blob_service_client
     from src.utils.azure_tools.get_credentials import credential
     from src.utils.azure_tools.get_variables import azure_search_endpoint
 
@@ -53,12 +55,14 @@ async def lifespan(app: fastapi.FastAPI):
     clients["summary-azure-ai-search"] = SearchClient(
         azure_search_endpoint, summary_index_name, credential=credential
     )
+    clients["image-container"] = blob_service_client
 
     yield
 
     await clients["chat-completion"].close()
     clients["text-azure-ai-search"].close()
     clients["image-azure-ai-search"].close()
+    clients["image-container"].close()
 
 
 def create_app():

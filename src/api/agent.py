@@ -8,11 +8,13 @@ import asyncio
 import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any, Dict, Literal
+from typing import Any, Dict, List, Literal
 
 from azure.search.documents.models import VectorizableTextQuery
 from loguru import logger
 
+from src.api.multimodal_document_context_reviewer import \
+    DocumentContextReviewer
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.chunks import Chunks
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
@@ -112,11 +114,9 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         self, llm: LLM, prompt_data: Any, search_config: Dict[str, Dict[str, Any]]
     ):
         super().__init__(llm, prompt_data, search_config)
-        self.image_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
-        self.summary_context_reviewer = ContextReviewer(
+        self.context_reviewer = DocumentContextReviewer(
             llm=llm, prompt_data=prompt_data
         )
-        self.text_context_reviewer = ContextReviewer(llm=llm, prompt_data=prompt_data)
 
     def _create_context_retriever(self, search_config):
         return InternalContextRetriever(search_config=search_config)
@@ -183,103 +183,75 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         # Filtering based on summary_search_result
         summary_search_result = sorted(
             summary_search_result,
-            key=lambda x: x["meta"]["@search.reranker_score"],
+            key=lambda x: x.meta.reranker_score,
             reverse=True,
         )[
-            :10  # Hard code the number of documents to be considered for filtering context
+            :5  # Hard code the number of documents to be considered for filtering context
         ]
         logger.info(
-            {
-                i["meta"]["title"]: i["meta"]["@search.reranker_score"]
-                for i in summary_search_result
-            }
+            {i.meta.title: i.meta.reranker_score for i in summary_search_result}
         )
 
-        selected_titles = set(t["meta"]["title"] for t in summary_search_result)
+        selected_titles = set(t.meta.title for t in summary_search_result)
         logger.info(f"Selected documents: {selected_titles}")
         image_search_result = [
-            i for i in image_search_result if i["meta"]["title"] in selected_titles
+            i for i in image_search_result if i.meta.title in selected_titles
         ]
 
         text_search_result = [
-            i for i in text_search_result if i["meta"]["title"] in selected_titles
+            i for i in text_search_result if i.meta.title in selected_titles
         ]
         logger.info(
             f"Text SEARCH Filtered round 1: {len(text_search_result)} chunks:\n"
-            + "\n".join(
-                [f"{i['meta']['title']}:{i['key']}" for i in text_search_result]
-            )
+            + "\n".join([f"{i.meta.title}:{i.key}" for i in text_search_result])
         )
         logger.info(
             f"Image SEARCH Filtered round 1: {len(image_search_result)} chunks:\n"
-            + "\n".join(
-                [f"{i['meta']['title']}:{i['key']}" for i in image_search_result]
-            )
+            + "\n".join([f"{i.meta.title}:{i.key}" for i in image_search_result])
         )
 
+        # ADD CHANGE Here#
+        tasks = []
+        for document_summary in summary_search_result:
+            image_chunks = [
+                i
+                for i in image_search_result
+                if i.meta.title == document_summary.meta.title
+            ]
+            text_chunks = [
+                i
+                for i in text_search_result
+                if i.meta.title == document_summary.meta.title
+            ]
+
+            if bool(image_chunks) or bool(text_chunks):  # If at least one isn't empty:
+                tasks.append(
+                    asyncio.create_task(
+                        self.context_reviewer.run_document(
+                            document_summary=document_summary,
+                            text_chunks=text_chunks,
+                            image_chunks=image_chunks,
+                        )
+                    )
+                )
+
+        # We should not use text_context/image_context any more.
+        # Create text_item and image_item. Get a collection of them, number them from 0
+        # Finally in the DocumentContextReviewer, pair doc summaries with numbered chunks
+        # create_task
+        # reap the chunk with reviews
+        # propagate to output
         # Create Chunks objet
-        text_context = Chunks(text_search_result)
-        image_context = Chunks(image_search_result)
+        contexts: List[Chunks] = [(await task) for task in tasks]
+        chunk_review = []
+        for c in contexts:
+            logger.info(c.chunk_review)
+            chunk_review += c.chunk_review
 
-        # Review chunks
-        doc_summary_mapping = {
-            t["meta"]["title"]: t["content"] for t in summary_search_result
-        }
-
-        self.prompt_data.update(
-            {
-                "formatted_text_context": text_context.friendly_chunk_view_with_doc_summary(
-                    doc_summary_mapping
-                )
-            }
-        )
-        self.prompt_data.update(
-            {
-                "formatted_image_context": image_context.friendly_chunk_view_with_doc_summary(
-                    doc_summary_mapping
-                )
-            }
-        )
-
-        logger.info("Reviewing texts ...")
-
-        # We can also review multiple documents at the same time, each time both images and texts are reviewed
-        # Here we review images and texts separately, although there's no specific reasons why that's better
-        # Will create a branch here to implement the multiple documents idea.
-
-        image_chunk_review_str = asyncio.create_task(
-            self.image_context_reviewer.run("formatted_image_context")
-        )
-
-        logger.info("Reviewing images ...")
-        text_chunk_review_str = asyncio.create_task(
-            self.text_context_reviewer.run("formatted_text_context")
-        )
-
-        # summary_context.integrate_chunk_review_data(await summary_chunk_review_str)
-        text_context.integrate_chunk_review_data(await text_chunk_review_str)
-        image_context.integrate_chunk_review_data(await image_chunk_review_str)
-
-        # Update prompt data with chunk review
-        self._update_prompt_data(image_context)
-        self._update_prompt_data(text_context)
-        logger.info(
-            f"Text REVIEW Filtered: {len(text_context.chunk_review)} chunks:\n"
-            + "\n".join(
-                [f"{i['meta']['title']}:{i['key']}" for i in text_context.chunk_review]
-            )
-        )
-        logger.info(
-            f"Image REVIEW Filtered: {len(image_context.chunk_review)} chunks:\n"
-            + "\n".join(
-                [f"{i['meta']['title']}:{i['key']}" for i in image_context.chunk_review]
-            )
-        )
-
-        return {
-            "decision": decision,
-            "chunks-review": text_context.chunk_review + image_context.chunk_review,
-        }
+        dummy_context = Chunks(chunks=[])
+        dummy_context.chunk_review = chunk_review
+        self._update_prompt_data(dummy_context)
+        return {"decision": decision, "chunks-review": chunk_review}
 
     def _update_prompt_data(self, context):
         self.prompt_data.chunk_review += context.friendly_chunk_review_view()
@@ -559,6 +531,17 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         decision = process_output["decision"]
         combined_chunks = process_output["chunks-review"]
 
+        # Here, update the review on internal data to make it prettier for prompting
+        self.prompt_data.update(
+            {
+                "chunk_review": "\n".join(
+                    f"---CHUNK {idx+1}---\nChunk content:{i['content']}\nSource document:{i['meta']['title']}\nExpert Review:{i['review_detail']}\n---\n"
+                    for idx, i in enumerate(combined_chunks)
+                    if (i["meta"]["search_type"] == "internal")
+                )
+            }
+        )
+
         if decision == "answer":
             response = await self.response_generator.direct_answer()
         else:
@@ -568,7 +551,7 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
             logger.info(
                 f"Return chunks:\n"
                 + "\n".join(
-                    [f"{i['meta']['title']}:{i['key']}" for i in combined_chunks]
+                    [f"{i['meta'].get('title')}:{i['key']}" for i in combined_chunks]
                 )
             )
 

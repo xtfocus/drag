@@ -172,11 +172,16 @@ class Message(BaseModel):
     Represents a single message in a conversation.
 
     Attributes:
-        content (str): The textual content of the message.
+        content (Union[str, List[Any]]): The textual content or a list of arbitrary elements in the message.
         role (str): The role of the message sender. Must be one of "user", "system", or "assistant".
     """
 
-    content: Annotated[str, Field(description="The textual content of the message.")]
+    content: Annotated[
+        Union[str, List[Any]],
+        Field(
+            description="The textual content or a list of arbitrary elements in the message."
+        ),
+    ]
     role: Annotated[
         str,
         Field(

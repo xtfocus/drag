@@ -85,13 +85,13 @@ class Chunks(SearchResults):
 
         for c in result:
             true_index = c["info_no"]
-            c["key"] = self.chunks[true_index]["key"]
-            c["content"] = self.chunks[true_index]["content"]
+            c["key"] = self.chunks[true_index].get("key")
+            c["content"] = self.chunks[true_index].get("content")
 
             c["datePublished"] = self.chunks[true_index].get("datePublished", None)
 
-            c["highlight"] = self.chunks[true_index]["highlight"]
-            c["meta"] = self.chunks[true_index]["meta"]
+            c["highlight"] = self.chunks[true_index].get("highlight")
+            c["meta"] = self.chunks[true_index].get("meta")
 
         # Drop irrelevant chunks
         self.chunk_review = [c for c in result if c["review_score"] > 0]
@@ -100,7 +100,7 @@ class Chunks(SearchResults):
         """
         Chunk review content. To be used in a prompt
         """
-        keys_to_keep = ["content", "datePublished", "meta"]
+        keys_to_keep = ["content", "datePublished", "meta", "review_detail"]
         return [{key: item[key] for key in keys_to_keep} for item in self.chunk_review]
 
     def friendly_chunk_view(self):

@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from azure.search.documents import SearchClient
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from src.utils.azure_tools.azure_semantic_search import default_semantic_args
 from src.utils.azure_tools.search import (azure_cognitive_search_wrapper,
@@ -153,6 +154,22 @@ class ExternalContextRetriever(ContextRetriever):
         return response
 
 
+class SearchMetadata(BaseModel):
+    title: str
+    parent_id: str
+    search_type: str = "internal"  # Default value since it's always "internal"
+    page_range: Dict  # Assuming page_range is a list of integers
+    reranker_score: float
+
+
+class InternalSearchResult(BaseModel):
+    key: str
+    content: str
+    highlight: List[str]
+    meta: SearchMetadata
+    review_detail: Optional[str] = ""
+
+
 class InternalContextRetriever(ContextRetriever):
     """
     Internal Context Search (Currently Azure Search).
@@ -164,7 +181,7 @@ class InternalContextRetriever(ContextRetriever):
         query: str = "",
         vector_query: Any = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[InternalSearchResult]:
         response_iterator: Iterator = azure_cognitive_search_wrapper(
             search_client,
             query=query,
@@ -173,27 +190,23 @@ class InternalContextRetriever(ContextRetriever):
             semantic_args=default_semantic_args,
             **self._search_config,
         )
-
         # Parsing Azure AI Search results
         response = [
-            {
-                "key": r["chunk_id"],
-                "content": r["chunk"],
-                "highlight": [i.text for i in r["@search.captions"]],
-                "meta": {
-                    "title": r["title"],
-                    "parent_id": r["parent_id"],
-                    "search_type": "internal",
-                    "page_range": json.loads(json.loads(r["metadata"]))["page_range"],
-                    "@search.reranker_score": r["@search.reranker_score"],
-                },
-            }
+            InternalSearchResult(
+                key=r["chunk_id"],
+                content=r["chunk"],
+                highlight=[i.text for i in r["@search.captions"]],
+                meta=SearchMetadata(
+                    title=r["title"],
+                    parent_id=r["parent_id"],
+                    page_range=json.loads(json.loads(r["metadata"]))["page_range"],
+                    reranker_score=r["@search.reranker_score"],
+                ),
+            )
             for r in response_iterator
         ]
-
         if response:
             logger.info(
-                "Found context in "
-                + "\n".join(set(r["meta"]["title"] for r in response))
+                "Found context in " + "\n".join(set(r.meta.title for r in response))
             )
         return response

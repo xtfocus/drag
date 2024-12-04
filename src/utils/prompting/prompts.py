@@ -97,6 +97,7 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part("Your standalone version: "),
 ]
 
+
 REVIEW_INTERNAL_CONTEXT_COMPLETENESS = [
     static_part(
         "You are a researcher that found some helpful clues to answer the following question: "
@@ -182,12 +183,12 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
     conditional_part(
         condition=lambda data: condition_chunk_review_not_empty(data)
         or condition_external_chunk_review_not_empty(data),
-        true_part="\nBased on all information provided with respect to user's query, provide a direct, precise and concise answer. "
+        true_part="\nBased on the information chunks and trusted expert reviews provided above, provide a direct, precise and concise answer. "
         "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet). "
         "For each fact, ensure you make reference to enhance the answer's reliability. Use the following formats:\n"
         "  - In-text citation: Include references within the sentence, e.g., According to Document ABC,...\n"
         "  - Bracketed reference: Add details inline, e.g., make some claim. [source: source's title]\n"
-        "If some chunks conflict, priotize ones that better fit the scope of the query. "
+        "If some chunks conflict, present all of them but notice the user of conflicts, then direct them to their supervisors for best information. "
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

@@ -535,7 +535,7 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         self.prompt_data.update(
             {
                 "chunk_review": "\n".join(
-                    f"---CHUNK {idx+1}---\nChunk content:{i['content']}\nSource document:{i['meta']['title']}\nExpert Review:{i['review_detail']}\n---\n"
+                    f"---CHUNK {idx+1}---\nChunk content:{i['content']}\nSource document:{i['meta']['title']}\nAnalysis result:{i['review_detail']}\n---\n"
                     for idx, i in enumerate(combined_chunks)
                     if (i["meta"]["search_type"] == "internal")
                 )

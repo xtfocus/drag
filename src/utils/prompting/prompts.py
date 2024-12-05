@@ -157,7 +157,7 @@ external_chunk_review_introduce = static_part(
     + f"You analyzed potentially relevant online information as follows:\n{data['external_chunk_review']}"
 )
 chunk_review_introduce = static_part(
-    lambda data: "You searched internal knowledge database and analyzed internal information related to the query as follows. "
+    lambda data: "You searched internal knowledge database and analyzed internal information chunks related to the query as follows. "
     + f"\n{data['chunk_review']}"
 )
 
@@ -183,12 +183,12 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
     conditional_part(
         condition=lambda data: condition_chunk_review_not_empty(data)
         or condition_external_chunk_review_not_empty(data),
-        true_part="\nBased on the information chunks and trusted expert reviews provided above, provide a direct, precise and concise answer. "
-        "Structure your answer in parts corresponding to the data sources they come from (internal knowledge database or internet). "
-        "For each fact, ensure you make reference to enhance the answer's reliability. Use the following formats:\n"
-        "  - In-text citation: Include references within the sentence, e.g., According to Document ABC,...\n"
-        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: source's title]\n"
+        true_part="\nBased on Chunks and their Analysis results, provide a direct, precise and concise answer. "
         "If some chunks conflict, present all of them but notice the user of conflicts, then direct them to their supervisors for best information. "
+        "Section your answer based on used data sources (internal knowledge database vs internet). "
+        "For each fact, include citation using following styles:\n"
+        "  - In-text citation: Include references within the sentence, e.g., According to document A and document B,...\n"
+        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: document A, document B]\n"
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

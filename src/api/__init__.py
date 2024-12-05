@@ -10,7 +10,6 @@ import os
 import fastapi
 import openai
 from azure.search.documents import SearchClient
-from azure.storage.blob import BlobServiceClient
 from environs import Env
 from fastapi.middleware.cors import CORSMiddleware
 

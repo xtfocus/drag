@@ -72,16 +72,20 @@ class Chunks(SearchResults):
         """
 
         try:
-            chunk_review_dicts = json.loads(chunk_review)["relevant_info"]
-            assert isinstance(chunk_review_dicts, List)
+            chunk_review_list = json.loads(chunk_review)["relevant_info"]
+            assert isinstance(chunk_review_list, List)
         except Exception as e:
             logger.error(
                 f"Error loading chunk_review as json string:\n{chunk_review} {e}"
             )
             raise
 
+        # Empty list
+        if not bool(chunk_review_list):
+            self.chunk_review = []
+
         # Synthesize chunks with review info
-        result = sorted(chunk_review_dicts, key=lambda x: x["info_no"])
+        result = sorted(chunk_review_list, key=lambda x: x["info_no"])
 
         for c in result:
             true_index = c["info_no"]

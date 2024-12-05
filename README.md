@@ -1,4 +1,4 @@
-# Branch: b04
+# MultiModal retrieval
 
 Implements:
 - Show actual images in prompts.

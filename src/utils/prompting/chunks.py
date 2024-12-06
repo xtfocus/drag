@@ -80,25 +80,28 @@ class Chunks(SearchResults):
             )
             raise
 
-        # Empty list
-        if not bool(chunk_review_list):
-            self.chunk_review = []
-
         # Synthesize chunks with review info
         result = sorted(chunk_review_list, key=lambda x: x["info_no"])
 
-        for c in result:
-            true_index = c["info_no"]
-            c["key"] = self.chunks[true_index].get("key")
-            c["content"] = self.chunks[true_index].get("content")
+        try:
+            for c in result:
+                true_index = c["info_no"]
+                c["key"] = self.chunks[true_index].get("key")
+                c["content"] = self.chunks[true_index].get("content")
 
-            c["datePublished"] = self.chunks[true_index].get("datePublished", None)
+                c["datePublished"] = self.chunks[true_index].get("datePublished", None)
 
-            c["highlight"] = self.chunks[true_index].get("highlight")
-            c["meta"] = self.chunks[true_index].get("meta")
+                c["highlight"] = self.chunks[true_index].get("highlight")
+                c["meta"] = self.chunks[true_index].get("meta")
 
-        # Drop irrelevant chunks
-        self.chunk_review = [c for c in result if c["review_score"] > 0]
+            # Drop irrelevant chunks
+            self.chunk_review = [c for c in result if c["review_score"] > 0]
+            return
+        except Exception as e:
+            error = f"LLM returned index out of range for list of length {len(self.chunks)}.Review result: {chunk_review_list}"
+            logger.error(error)
+            self.chunk_review = []
+            return
 
     def friendly_chunk_review_view(self) -> Any:
         """

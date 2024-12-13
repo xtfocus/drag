@@ -9,7 +9,8 @@ from src.api.retrieve_image_base64 import retrieve_multiple_images
 from src.utils.core_models.models import Message
 from src.utils.prompting.chunks import Chunks
 from src.utils.prompting.prompt_parts import create_prompt, static_part
-from src.utils.prompting.prompts import (conditional_recent_messages_show,
+from src.utils.prompting.prompts import (SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK,
+                                         conditional_recent_messages_show,
                                          conditional_summary_show,
                                          conditional_user_latest_query)
 from src.utils.reasoning_layers.base_layers import (BaseAgent,
@@ -99,10 +100,10 @@ class DocumentContextReviewer(BaseAgent):
 
         # Introduce text chunks if any exist
         if text_chunks:
-            contents.append("This document contains the following text chunks:\n")
+            contents.append("This document contains the following text chunk(s):\n")
             # Add text chunks
             for idx, chunk in enumerate(text_chunks):
-                chunk_text = f"[Chunk {idx}]\n{chunk.content}\n"
+                chunk_text = f"## Chunk index: {idx}\n{create_prompt(chunk.model_dump(), SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK)}\n---\n"
                 contents.append(chunk_text)
 
         # Introduce and add image chunks if any exist
@@ -127,7 +128,7 @@ class DocumentContextReviewer(BaseAgent):
                 "relevant_info": [
                     {
                         "info_no": 0,  # Numbering of the information, starting from 0
-                        "review_detail": "<Your brief review regarding scope and relevance. if possible, answer the query using this chunk>",
+                        "review_detail": "<Your brief review regarding scope and relevance. If possible, use this chunk to obtain an answer to the query>",
                         "review_score": 1  # where 0 means exclusion, 1 means selection
                     },
                     {

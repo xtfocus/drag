@@ -29,6 +29,15 @@ LANGUAGE_PROMPT = static_part(
 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
 
+SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK = [
+    static_part(lambda chunk: f"## Chunk content: {chunk.get('content')}"),
+    conditional_part(
+        condition=lambda chunk: bool(chunk.get("datePublished")),
+        true_part=lambda chunk: chunk.get("datePublished"),
+        false_part="",
+    ),
+]
+
 instruction_show = (
     lambda data: f"You are an assistant from the Subaru company. You have access to internal search on internal documents and internet search for user's questions. This is your ultimate instruction: {data.get('system_prompt')}\n"
 )
@@ -188,7 +197,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         "Section your answer based on used data sources (internal knowledge database vs internet). "
         "For each fact, include citation using following styles:\n"
         "  - In-text citation: Include references within the sentence, e.g., According to document A and document B,...\n"
-        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: document A, document B]\n"
+        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: A, B] (A and B are document's name)\n"
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

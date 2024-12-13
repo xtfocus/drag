@@ -18,6 +18,7 @@ from src.api.multimodal_document_context_reviewer import \
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.chunks import Chunks
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
+from src.utils.prompting.prompt_parts import create_prompt
 from src.utils.prompting.prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
                                          DIRECT_ANSWER_PROMPT_TEMPLATE,
                                          HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE,
@@ -25,6 +26,7 @@ from src.utils.prompting.prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
                                          REVIEW_CHUNKS_PROMPT_TEMPLATE,
                                          REVIEW_INTERNAL_CONTEXT_COMPLETENESS,
                                          SEARCH_ANSWER_PROMPT_TEMPLATE,
+                                         SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK,
                                          SUMMARIZE_PROMPT_TEMPLATE)
 from src.utils.reasoning_layers.base_layers import (BaseAgent,
                                                     ExternalContextRetriever,
@@ -186,7 +188,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             key=lambda x: x.meta.reranker_score,
             reverse=True,
         )[
-            :5  # Hard code the number of documents to be considered for filtering context
+            :10  # Hard code the number of documents to be considered for filtering context
         ]
         logger.info(
             {i.meta.title: i.meta.reranker_score for i in summary_search_result}
@@ -470,9 +472,14 @@ class PriorityPlanningProcessor:
         first_decision = internal_query_processor_output["decision"]
         internal_chunk_review_data = internal_query_processor_output["chunks-review"]
 
-        verdict = (
-            await self.evaluator.run()
-        )  # verdict if the internal chunks suffice and no additional context required
+        if hasattr(self, "external_query_processor"):
+            verdict = (
+                await self.evaluator.run()
+            )  # verdict if the internal chunks suffice and no additional context required
+        else:
+            verdict = (
+                1  # if external search not enabled, automatically set verdict to 1.
+            )
         external_chunk_review_data = []
 
         if hasattr(self, "external_query_processor"):
@@ -535,7 +542,13 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         self.prompt_data.update(
             {
                 "chunk_review": "\n".join(
-                    f"---CHUNK {idx+1}---\nChunk content:{i['content']}\nSource document:{i['meta']['title']}\nAnalysis result:{i['review_detail']}\n---\n"
+                    f"---CHUNK {idx+1}---\n"
+                    + f"\n## Source document:{i['meta']['title']}\n"
+                    + create_prompt(
+                        i,
+                        SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK,
+                    )
+                    + f"\n## Analysis result:{i['review_detail']}\n---\n"
                     for idx, i in enumerate(combined_chunks)
                     if (i["meta"]["search_type"] == "internal")
                 )

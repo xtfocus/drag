@@ -13,10 +13,8 @@ from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizableTextQuery
 from loguru import logger
 
-from src.utils.azure_tools.get_credentials import credential
 from src.utils.azure_tools.get_variables import (azure_bing_api_key,
-                                                 azure_bing_endpoint,
-                                                 azure_search_endpoint)
+                                                 azure_bing_endpoint)
 from src.utils.core_models.models import SemanticSearchArgs
 
 

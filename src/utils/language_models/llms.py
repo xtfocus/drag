@@ -87,5 +87,5 @@ class LLM:
         if stream:
             return response
         else:
-            logger.info(f"Token usage: {response.model_dump()['usage']}")
+            # logger.info(f"Token usage: {response.model_dump()['usage']}")
             return response.model_dump()["choices"][0]["message"]["content"]

@@ -133,7 +133,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
         )
 
         # Use ProcessPoolExecutor to run searches in parallel
-        with ProcessPoolExecutor(max_workers=2) as executor:
+        with ProcessPoolExecutor(max_workers=4) as executor:
             # Submit search tasks
             text_future = executor.submit(
                 self.context_retriever.run,
@@ -188,13 +188,14 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             key=lambda x: x.meta.reranker_score,
             reverse=True,
         )[
-            :10  # Hard code the number of documents to be considered for filtering context
+            :8  # Hard code the number of documents to be considered for filtering context
         ]
+
         logger.info(
             {i.meta.title: i.meta.reranker_score for i in summary_search_result}
         )
 
-        selected_titles = set(t.meta.title for t in summary_search_result)
+        selected_titles = [t.meta.title for t in summary_search_result]
         logger.info(f"Selected documents: {selected_titles}")
         image_search_result = [
             i for i in image_search_result if i.meta.title in selected_titles
@@ -212,6 +213,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             + "\n".join([f"{i.meta.title}:{i.key}" for i in image_search_result])
         )
 
+        logger.debug("Start Reviewer")
         # ADD CHANGE Here#
         tasks = []
         for document_summary in summary_search_result:
@@ -237,14 +239,10 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
                     )
                 )
 
-        # We should not use text_context/image_context any more.
-        # Create text_item and image_item. Get a collection of them, number them from 0
-        # Finally in the DocumentContextReviewer, pair doc summaries with numbered chunks
-        # create_task
-        # reap the chunk with reviews
-        # propagate to output
-        # Create Chunks objet
         contexts: List[Chunks] = [(await task) for task in tasks]
+
+        logger.debug("Finish Reviewer")
+
         chunk_review = []
         for c in contexts:
             logger.info(c.chunk_review)

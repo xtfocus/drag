@@ -188,7 +188,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             key=lambda x: x.meta.reranker_score,
             reverse=True,
         )[
-            :8  # Hard code the number of documents to be considered for filtering context
+            :10  # Hard code the number of documents to be considered for filtering context
         ]
 
         logger.info(

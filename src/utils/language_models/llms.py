@@ -75,6 +75,7 @@ class LLM:
             logger.info(f"Parsed response: {response.model_dump()}")
             return response
 
+        logger.debug("create openai request")
         # Handle the case where response_format is a dict (e.g., {"type": "json_object"}) or None
         response = await self.client.chat.completions.create(
             model=self.model_name,
@@ -87,5 +88,6 @@ class LLM:
         if stream:
             return response
         else:
+            logger.debug("finish openai request")
             # logger.info(f"Token usage: {response.model_dump()['usage']}")
             return response.model_dump()["choices"][0]["message"]["content"]

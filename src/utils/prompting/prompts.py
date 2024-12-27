@@ -92,17 +92,17 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "a standalone version that clearly communicates the human's intent, incorporating the relevant context "
         "of the conversation while maintaining the tone and language of the message. "
         "Ensure the standalone version is concise and precise. If the message is already "
-        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message. Do not change the tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query."
+        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message. Do not change the tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query. Make sure the rephrased query preserves full context of the original."
     ),
     static_part(TIME_PROMPT),
     conditional_summary_introduce,
     conditional_recent_messages_introduce,
     static_part(
-        "the latest message from the human, and you will enhance this message."
+        " Following is the latest message from the human, and you will enhance this message:\n"
     ),
     conditional_summary_show,
     conditional_recent_messages_show,
-    lambda data: f"\nThe latest message from the human: {data.get('query')}\n",
+    lambda data: f"{data.get('query')}\n",
     static_part("Your standalone version: "),
 ]
 

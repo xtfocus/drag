@@ -18,14 +18,12 @@ from src.utils.reasoning_layers.base_layers import (BaseAgent,
 
 REVIEW_HYBRID_CHUNKS_PROMPT_TEMPLATE = [
     static_part(
-        "You are an information evaluator. Given a user's query from a conversation "
-        "between the user and an assistant, along with candidate context chunks retrieved from a document, "
-        "your objective is to select the chunks that directly contribute to answering "
-        "the query. Selected chunks must contain information that:\n"
-        "- has the EXACT scope as of the query. Hint: scan for relevant entities, titles, or time spans\n"
-        "- precisely addresses one or more aspects of the query.\n"
-        "If some chunks contains conflict information, remove chunks having inappropriate scope. "
-        "The context chunks can come in text form or as images. Scan them carefully before submitting your work.\n"
+        "You are tasked with evaluating information. Given a user's query from a conversation with an assistant, along with candidate context chunks retrieved from a document, your goal is to select the chunks that directly contribute to answering the query. "
+        "The selected chunks must meet both of the following conditions:"
+        "1. They must have the **exact scope** of the query: Pay attention to keywords: entities, titles, or time spans that match the query."
+        "2. They must **precisely address** one or more aspects of the query."
+        "If any chunks contain conflicting information, discard those that are irrelevant due to a mismatched scope. Proper scoping is crucial—selecting information that seems helpful but is outside the scope of the query can lead to incorrect answers. For example, the same regulation section may be referenced by different departments, but they may not be equivalent."
+        "The context chunks may be in text form or images. Please review them carefully before submitting your selections."
     ),
     conditional_summary_show,
     conditional_recent_messages_show,

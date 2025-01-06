@@ -60,7 +60,7 @@ class Chunks(SearchResults):
         while chunk_review is a string like so
         ```
         {
-            "relevant_info": [
+            "review_output": [
                 {
                     "info_no": 0,
                     "review_score": 0,
@@ -72,7 +72,7 @@ class Chunks(SearchResults):
         """
 
         try:
-            chunk_review_list = json.loads(chunk_review)["relevant_info"]
+            chunk_review_list = json.loads(chunk_review)["review_output"]
             assert isinstance(chunk_review_list, List)
         except Exception as e:
             logger.error(

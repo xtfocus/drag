@@ -123,9 +123,9 @@ class DocumentContextReviewer(BaseAgent):
         contents.append(
             """\nStructure your output using the following JSON format.
             {
-                "relevant_info": [
+                "review_output": [
                     {
-                        "info_no": 0,  # Numbering of the information, starting from 0
+                        "info_no": 0,  # Numbering of the chunk.
                         "review_detail": "<Your brief review regarding scope and relevance. If possible, use this chunk to obtain an answer to the query>",
                         "review_score": 1  # where 0 means exclusion, 1 means selection
                     },

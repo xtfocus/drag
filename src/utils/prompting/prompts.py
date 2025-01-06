@@ -147,7 +147,7 @@ REVIEW_CHUNKS_PROMPT_TEMPLATE = [
     static_part(
         """Structure your output using the following JSON format.
         {{
-        "relevant_info": [
+        "review_output": [
                 {{
                     "info_no": 0, # Numbering of the information, starting from 0
                     "review_detail": <Your brief review regarding scope and relevance> 

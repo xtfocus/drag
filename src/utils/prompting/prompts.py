@@ -10,7 +10,7 @@ from src.utils.prompting.prompt_parts import conditional_part, static_part
 
 current_date = datetime.now().strftime("%Y-%m-%d")
 
-TIME_PROMPT = f"Today is {current_date}. "
+TIME_PROMPT = f"FYI, today is {current_date}. "
 
 EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
@@ -90,16 +90,18 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "You are a language expert that helps enhance the clarity of human messages emerged from the conversation. "
         "Such messages are sometimes not meaningful if taken out of context, but you can rephrase them into "
         "a standalone version that clearly communicates the human's intent, incorporating the relevant context "
-        "of the conversation while maintaining the tone and language of the message. "
-        "Ensure the standalone version is concise and precise. If the message is already "
-        "clear and complete on its own, simply repeat it without changes. Do not add excessive information to the message. Do not change the tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query. Make sure the rephrased query preserves full context of the original."
+        "of the conversation while maintaining the tone and language of the message.\n"
+        "Guideline:"
+        "- If the message is already clear and complete, repeat it without changes\n"
+        "- If you are unsure, repeat it without changes\n"
+        "- Preserve all context keywords in the original query\n"
+        "- Preserve the  tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query\n"
+        "- Do not add excessive information to the message\n"
     ),
     static_part(TIME_PROMPT),
     conditional_summary_introduce,
     conditional_recent_messages_introduce,
-    static_part(
-        " Following is the latest message from the human, and you will enhance this message:\n"
-    ),
+    static_part(" Following is the latest message from the human:\n"),
     conditional_summary_show,
     conditional_recent_messages_show,
     lambda data: f"{data.get('query')}\n",

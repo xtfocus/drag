@@ -160,6 +160,7 @@ class SearchMetadata(BaseModel):
     search_type: str = "internal"  # Default value since it's always "internal"
     page_range: Dict  # Assuming page_range is a list of integers
     reranker_score: float
+    score: float
 
 
 class InternalSearchResult(BaseModel):
@@ -201,10 +202,16 @@ class InternalContextRetriever(ContextRetriever):
                     parent_id=r["parent_id"],
                     page_range=json.loads(json.loads(r["metadata"]))["page_range"],
                     reranker_score=r["@search.reranker_score"],
+                    score=r["@search.score"],
                 ),
             )
             for r in response_iterator
         ]
+
+        # Sorting results by score, not reranker_score
+        if response:
+            response = sorted(response, key=lambda x: float(x.meta.score), reverse=True)
+
         if response:
             logger.info(
                 "Found context in " + "\n".join(set(r.meta.title for r in response))

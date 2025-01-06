@@ -29,7 +29,7 @@ async def retrieve_base64(file_name):
 
     if not connection_string or not container_name:
         raise ValueError(
-            "Environment variables AZURE_STORAGE_CONNECTION_STRING or IMAGE_CONTAINER are not set."
+            "Environment variables AZURE_STORAGE_CONNECTION_STRING or IMAGE_CONTAINER_NAME are not set."
         )
 
     # Get the BlobClient for the specific file

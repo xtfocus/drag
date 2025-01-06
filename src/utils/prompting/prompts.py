@@ -87,6 +87,7 @@ conditional_user_latest_query = conditional_part(
 
 AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part(
+<<<<<<< HEAD
         "You are a language expert that helps enhance the clarity of human messages emerged from the conversation. "
         "Such messages are sometimes not meaningful if taken out of context, but you can rephrase them into "
         "a standalone version that clearly communicates the human's intent, incorporating the relevant context "
@@ -97,13 +98,36 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "- Preserve all context keywords in the original query\n"
         "- Preserve the  tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query\n"
         "- Do not add excessive information to the message\n"
+=======
+        """You are a language expert tasked with enhancing the clarity of human messages. Your primary responsibility is to rephrase messages to make them accurate, complete, and understandable on their own. Guidelines for Rephrasing:
+    1. Contextual Understanding
+        Incorporate relevant context from the conversation to ensure the rephrased message reflects the original intent accurately.
+        Preserve the purpose and meaning of the original message.
+        If keywords exist, do no remove them from the query.
+    2. Clarity and Completeness
+        Ensure the message is clear and fully self-contained.
+        If the original message is already clear and complete, repeat it without changes.
+    3. Conciseness and Accuracy
+        Make the rephrased message as concise as possible while ensuring it remains accurate and complete. 
+        Avoid unnecessary or redundant information.
+    4. Language Consistency
+        Maintain the original language  (e.g., English, Japanese, Vietnamese) of the message"""
+>>>>>>> bbedc782ea1e729a0cc30cf37f3eb8c2528bff69
     ),
     static_part(TIME_PROMPT),
     conditional_summary_introduce,
     conditional_recent_messages_introduce,
+<<<<<<< HEAD
     static_part(" Following is the latest message from the human:\n"),
     conditional_summary_show,
     conditional_recent_messages_show,
+=======
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    static_part(
+        " Following is the latest message from the human, and you will enhance this message:\n"
+    ),
+>>>>>>> bbedc782ea1e729a0cc30cf37f3eb8c2528bff69
     lambda data: f"{data.get('query')}\n",
     static_part("Your standalone version: "),
 ]

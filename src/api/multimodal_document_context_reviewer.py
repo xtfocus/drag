@@ -20,9 +20,9 @@ REVIEW_HYBRID_CHUNKS_PROMPT_TEMPLATE = [
     static_part(
         "You are tasked with evaluating information. Given a user's query from a conversation with an assistant, along with candidate context chunks retrieved from a document, your goal is to select the chunks that directly contribute to answering the query. "
         "The selected chunks must meet BOTH of the following conditions:\n"
-        "1. Must be the precisely the scope of the query: pay attention to keywords matches: entities, titles, or time spans that match the query. Partial matches can be distraction.\n"
+        "1. Must precisely fit the scope of the query: pay attention to keywords matches: entities, titles, time, etc.\n"
         "2. Must precisely address one or more aspects of the query.\n"
-        "If any chunks contain conflicting information, discard those that are irrelevant due to a mismatched scope. Proper scoping is crucial—selecting information that seems helpful but is outside the scope of the query can lead to incorrect answers. For example, the same regulation section may be referenced by different departments, but they may not be equivalent."
+        "Proper scoping is crucial—selecting information that seems helpful but is outside the scope of the query can lead to incorrect answers. If any chunks contain conflicting information, discard those that are irrelevant due to a mismatched scope. For example, the same regulation section may be referenced by different departments, but they may not be equivalent."
         "The context chunks may be in text form or images. Please review them carefully before submitting your selections."
     ),
     conditional_summary_show,

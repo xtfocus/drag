@@ -24,7 +24,7 @@ SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 FOLLOWUP_PROMPT = ""
 
 LANGUAGE_PROMPT = static_part(
-    " You must answer in Japanese, unless user explicitly requested otherwise"
+    " You must answer in the language of user's query, unless user explicitly requested otherwise"
 )
 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
@@ -199,7 +199,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         "Section your answer based on used data sources (internal knowledge database vs internet). "
         "For each fact, include citation using following styles:\n"
         "  - In-text citation: Include references within the sentence, e.g., According to document A and document B,...\n"
-        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: A, B] (A and B are document's name)\n"
+        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: A, B] (A and B are document names. Do not include CHUNK in `source`)\n"
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

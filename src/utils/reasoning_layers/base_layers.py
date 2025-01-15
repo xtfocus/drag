@@ -18,6 +18,16 @@ from src.utils.language_models.llms import LLM
 from src.utils.prompting.prompt_parts import create_prompt
 
 
+def azure_metadata_handling(obj) -> Dict:
+    """
+    For some reason azure return metadata field as dict now, and sometimes as string
+    """
+    if isinstance(obj, Dict):
+        return obj
+    elif isinstance(obj, str):
+        return json.loads(obj)
+
+
 class BaseAgent:
     """
     Base Agent class to orchestrate llm, prompt template, and prompt data
@@ -200,13 +210,17 @@ class InternalContextRetriever(ContextRetriever):
                 meta=SearchMetadata(
                     title=r["title"],
                     parent_id=r["parent_id"],
-                    page_range=json.loads(json.loads(r["metadata"]))["page_range"],
+                    page_range=azure_metadata_handling(json.loads(r["metadata"]))[
+                        "page_range"
+                    ],
                     reranker_score=r["@search.reranker_score"],
                     score=r["@search.score"],
                 ),
             )
             for r in response_iterator
         ]
+
+        logger.debug(response)
 
         # Sorting results by score, not reranker_score
         # if response:

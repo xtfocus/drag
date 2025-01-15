@@ -220,8 +220,6 @@ class InternalContextRetriever(ContextRetriever):
             for r in response_iterator
         ]
 
-        logger.debug(response)
-
         # Sorting results by score, not reranker_score
         # if response:
         #     response = sorted(response, key=lambda x: float(x.meta.score), reverse=True)

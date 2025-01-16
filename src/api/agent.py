@@ -22,6 +22,7 @@ from src.utils.prompting.prompt_parts import create_prompt
 from src.utils.prompting.prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
                                          DIRECT_ANSWER_PROMPT_TEMPLATE,
                                          HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE,
+                                         QUERY_ANALYZER_REPHRASER_TEMPLATE,
                                          QUERY_ANALYZER_TEMPLATE,
                                          REVIEW_CHUNKS_PROMPT_TEMPLATE,
                                          REVIEW_INTERNAL_CONTEXT_COMPLETENESS,
@@ -292,6 +293,45 @@ class Summarizer(BaseAgent):
         super().__init__(
             llm, prompt_data, template=SUMMARIZE_PROMPT_TEMPLATE, stream=stream
         )
+
+
+class QueryRephraserAnalyzer(BaseAgent):
+    """
+    Analyzes a rephrased user query to determine the best course of action (e.g., search or answer directly).
+
+    Args:
+        llm (LLM): The language model instance.
+        prompt_data (ConversationalRAGPromptData): Data used for analyzing the query.
+        stream (bool): Whether to stream the result. Defaults to False.
+
+    Returns:
+        str: Either 'search' or 'answer', based on the analysis.
+    """
+
+    def __init__(
+        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
+    ):
+        super().__init__(
+            llm, prompt_data, template=QUERY_ANALYZER_REPHRASER_TEMPLATE, stream=stream
+        )
+
+    async def run(self) -> str:
+        """
+        analyzer_output:
+            {
+              "rephrased_message": "<The rephrased user message with historical context incorporated>",
+              "message_analysis": {
+                "demand_search": <1 or 0>,
+                "require_internet": <1 or 0>,
+                "corporate_related": <1 or 0>,
+                "uncommon_topic": <1 or 0>,
+                "unsure": <1 or 0>
+              }
+            }
+        """
+        analyzer_output = await super().run(response_format={"type": "json_object"})
+        analyzer_output_parsed = json.loads(analyzer_output)
+        return "search" if any(analyzer_output_parsed.values()) else "answer"
 
 
 class QueryAnalyzer(BaseAgent):

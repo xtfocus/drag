@@ -62,6 +62,7 @@ conditional_recent_messages_introduce = conditional_part(
     false_part="",
 )
 
+
 conditional_summary_show = conditional_part(
     condition=condition_current_summary_exist,
     true_part=lambda data: f"Summary of the conversation so far: {data.get('current_summary')}\n",
@@ -84,6 +85,49 @@ conditional_user_latest_query = conditional_part(
     true_part=user_latest_query,
     false_part="",
 )
+
+QUERY_ANALYZER_REPHRASER_TEMPLATE = [
+    static_part(
+        "You are a query analyzer and rephraser. Your task is to:\n"
+        "1. Rephrase the user's query to incorporate historical context from the conversation:\n"
+        "- If the message is already clear and complete, repeat it without changes\n"
+        "- If you are unsure, repeat it without changes\n"
+        "- Preserve all context keywords in the original query\n"
+        "- Preserve the  tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query\n"
+        "- Do not add excessive information to the message\n"
+        "2. Analyze the rephrased query to determine the best course of action.\n"
+    ),
+    static_part(TIME_PROMPT),
+    conditional_summary_introduce,
+    conditional_recent_messages_introduce,
+    conditional_summary_show,
+    conditional_recent_messages_show,
+    static_part("USER's latest message: "),
+    lambda data: f"{data.get('query')}\n",
+    static_part(
+        """Perform the following tasks:
+1. Rephrase the user's query to incorporate historical context from the conversation.
+2. Analyze the rephrased query to determine:
+   - Whether a search is demanded explicitly by user (demand_search).
+   - Whether an internet search is required to answer (require_internet).
+   - Whether the query is related to corporate topics (corporate_related).
+   - Whether the query is about an uncommon topic (uncommon_topic).
+   - Whether you are unsure about the answer (unsure).
+
+Structure your output using the following JSON format:
+{
+  "rephrased_message": "<The rephrased user message with historical context incorporated>",
+  "message_analysis": {
+    "demand_search": <1 or 0>,
+    "require_internet": <1 or 0>,
+    "corporate_related": <1 or 0>,
+    "uncommon_topic": <1 or 0>,
+    "unsure": <1 or 0>
+  }
+}"""
+    ),
+]
+
 
 AUGMENT_QUERY_PROMPT_TEMPLATE = [
     static_part(

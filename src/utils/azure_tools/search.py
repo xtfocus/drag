@@ -53,7 +53,20 @@ def azure_cognitive_search_wrapper(
         - Hybrid search: When both query and search_text are provided, it combines vector similarity with traditional text search.
         - Hybrid search + Semantic reranking: When search_text is provided along with semantic_args, the results are semantically reranked.
     """
+    filter_expression = None
+    if kwargs.get("search_filter"):
+        user_name = kwargs["search_filter"].get("username")
+        file_names = kwargs["search_filter"].get("file_names")
 
+        # Join file names into a comma-separated string
+        file_names_str = ", ".join(file_names)
+
+        # Build the filter expression using 'search.in'
+        filter_expression = (
+            f"(uploader eq '{user_name}') and search.in(title, '{file_names_str}', ',')"
+        )
+
+        logger.debug(filter_expression)
     if not vector_query:
         # Create a VectorizableTextQuery object for performing vector-based similarity search.
         vector_query = VectorizableTextQuery(
@@ -75,6 +88,7 @@ def azure_cognitive_search_wrapper(
             "metadata",
         ],
         top=top_n,
+        filter=filter_expression,
         **semantic_args.model_dump(),
     )
 

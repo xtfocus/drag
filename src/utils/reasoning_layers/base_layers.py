@@ -200,7 +200,7 @@ class InternalContextRetriever(ContextRetriever):
                 meta=SearchMetadata(
                     title=r["title"],
                     parent_id=r["parent_id"],
-                    page_range=json.loads(json.loads(r["metadata"]))["page_range"],
+                    page_range=(json.loads(r["metadata"]))["page_range"],
                     reranker_score=r["@search.reranker_score"],
                     score=r["@search.score"],
                 ),

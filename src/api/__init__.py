@@ -24,7 +24,8 @@ async def lifespan(app: fastapi.FastAPI):
 
     from src.utils.azure_tools.azure_blob_service import blob_service_client
     from src.utils.azure_tools.get_credentials import credential
-    from src.utils.azure_tools.get_variables import azure_search_endpoint
+    from src.utils.azure_tools.get_variables import (azure_openai_api_version,
+                                                     azure_search_endpoint)
 
     from .indexing_resource_name import (image_index_name, summary_index_name,
                                          text_index_name)
@@ -39,7 +40,7 @@ async def lifespan(app: fastapi.FastAPI):
     client_args["max_retries"] = int(os.getenv("OPENAI_MAX_RETRIES", 3))
 
     clients["chat-completion"] = openai.AsyncAzureOpenAI(
-        api_version="2023-07-01-preview",
+        api_version=azure_openai_api_version,
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         **client_args,
     )

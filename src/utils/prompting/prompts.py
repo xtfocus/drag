@@ -168,7 +168,7 @@ external_chunk_review_introduce = static_part(
     + f"You analyzed potentially relevant online information as follows:\n{data['external_chunk_review']}"
 )
 chunk_review_introduce = static_part(
-    lambda data: "You searched internal knowledge database and analyzed internal information chunks related to the query as follows. "
+    lambda data: "You searched internal knowledge database for documents. Each document contains chunks. You analyzed the chunks as follows. "
     + f"\n{data['chunk_review']}"
 )
 
@@ -199,7 +199,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         "Section your answer based on used data sources (internal knowledge database vs internet). "
         "For each fact, include citation using following styles:\n"
         "  - In-text citation: Include references within the sentence, e.g., According to document A and document B,...\n"
-        "  - Bracketed reference: Add details inline, e.g., make some claim. [source: A, B] (A and B are document's name)\n"
+        "  - Bracketed reference: for instance, [source: A, B] (A and B are document's name). Simply refer to the document, do not reveal the Chunk number.\n"
         "Avoid including additional or tangent information unless explicitly asked by the user. "
         "If the user’s query involves clarification or follow-up questions, offer additional details.",
         false_part=REFUSE,

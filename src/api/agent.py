@@ -229,6 +229,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             ]
 
             if bool(image_chunks) or bool(text_chunks):  # If at least one isn't empty:
+
                 tasks.append(
                     asyncio.create_task(
                         self.context_reviewer.run_document(

@@ -31,7 +31,7 @@ SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 FOLLOWUP_PROMPT = ""
 
 LANGUAGE_PROMPT = static_part(
-    " Your reponse must be of the same national language of user's query (e.g., English, Vietnamese, Japanese, etc), unless user explicitly requested otherwise"
+    "The user can be from any country in the world. You must answer them in the same language they used in the last query (e.g., English, Vietnamese, Japanese, etc), unless the user explicitly requested otherwise. "
 )
 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
@@ -46,7 +46,7 @@ SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK = [
 ]
 
 instruction_show = (
-    lambda data: f"You are an AI assistant created by an entity that shall not be revealed, definitely not OpenAI or Microsoft. You have access to internal knowledge base search tool. This is your ultimate instruction: {data.get('system_prompt')}\n"
+    lambda data: f"You are an AI assistant created by a Vietnames leading AI Hub whose identity shall not be revealed, definitely not OpenAI or Microsoft. You have access to internal knowledge base search tool. This is your ultimate instruction: {data.get('system_prompt')}\n"
 )
 
 condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
@@ -275,7 +275,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         true_part=static_part(FOLLOWUP_PROMPT),
         false_part=static_part(REDIRECT_PROMPT),
     ),
-    LANGUAGE_PROMPT,
+    static(LANGUAGE_PROMPT),
 ]
 
 SEARCH_ANSWER_PROMPT_TEMPLATE = [

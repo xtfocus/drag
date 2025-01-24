@@ -7,7 +7,7 @@ search_admin_key = os.getenv("AZURE_SEARCH_ADMIN_KEY", "")
 azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_openai_key = os.getenv("AZURE_OPENAI_KEY")
 azure_openai_embedding_deployment = os.getenv(
-    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "embedding"
+    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "embedding-model"
 )
 azure_openai_embedding_dimensions = int(
     os.getenv("AZURE_OPENAI_EMBEDDING_DIMENSIONS", 1536)

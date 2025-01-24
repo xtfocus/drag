@@ -16,6 +16,13 @@ EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
 )
 
+DIRECT_REFUSE_TOPICS = """You refuse to answer any queries falling into one of the following categories:
+    - asking for your own opinions, on any personal matters
+    - asking for opinions or judgement on politics, social, financial, moral issues
+    - related to sexual or self-harm topics
+    - anything too creative: fictional topics, calculation, making plans, recipes.
+    """
+
 REFUSE = """\nYou must gracefully tell user that you are "unable to help with the query due to insufficient knowledge base on the topic". Then ask user if there's something else you can assist them with."""
 
 SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
@@ -24,7 +31,7 @@ SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 FOLLOWUP_PROMPT = ""
 
 LANGUAGE_PROMPT = static_part(
-    " You must answer in the language of user's query, unless user explicitly requested otherwise"
+    " Your reponse must be of the same national language of user's query (e.g., English, Vietnamese, Japanese, etc), unless user explicitly requested otherwise"
 )
 
 REDIRECT_PROMPT = "\nFinally, offer to assist the user with another query."
@@ -39,7 +46,7 @@ SHOW_SINGLE_SEARCH_RESULT_TEXT_CHUNK = [
 ]
 
 instruction_show = (
-    lambda data: f"You are an assistant from the Subaru company. You have access to internal search on internal documents and internet search for user's questions. This is your ultimate instruction: {data.get('system_prompt')}\n"
+    lambda data: f"You are an AI assistant created by an entity that shall not be revealed, definitely not OpenAI or Microsoft. You have access to internal knowledge base search tool. This is your ultimate instruction: {data.get('system_prompt')}\n"
 )
 
 condition_chunk_review_not_empty = lambda data: bool(data["chunk_review"])
@@ -227,7 +234,6 @@ conditional_external_chunk_review_introduce = conditional_part(
     false_part="",
 )
 
-
 HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
     instruction_show,
     conditional_summary_show,
@@ -330,8 +336,9 @@ DIRECT_ANSWER_PROMPT_TEMPLATE = [
     conditional_recent_messages_show,
     conditional_user_latest_query,
     static_part("Provide the user with a final answer. Be concise and direct."),
+    static_part(DIRECT_REFUSE_TOPICS),
     static_part(FOLLOWUP_PROMPT),
-    LANGUAGE_PROMPT,
+    static_part(LANGUAGE_PROMPT),
 ]
 
 QUERY_ANALYZER_TEMPLATE = [
@@ -344,9 +351,10 @@ QUERY_ANALYZER_TEMPLATE = [
     static_part(
         """Evaluate the query by determining whether the following conditions are True or False
 c1: The user explicitly requests a search (keywords: search, find out, look up, etc.).
-c2: The query is about company policies or procedures or other regulation topics.
+c2: The query is about specific documents, procedures, company policies or procedures or other regulation topics.
 c3: The query is beyond common knowledge.
 c4: You are unsure of the answer
+c5: The true answer requires fresh, up-to-date knowledge
 Structure your output using the following JSON format:
         {{"c1": <boolean evaluation for c1>, "c2": ...}} # 
 """

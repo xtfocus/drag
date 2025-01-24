@@ -18,3 +18,6 @@
 **/*.log
 
 **/notes/*
+
+*.txt
+batch_curl*  

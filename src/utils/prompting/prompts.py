@@ -16,8 +16,8 @@ EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
 )
 
-DIRECT_REFUSE_TOPICS = """You refuse to answer any queries falling into one of the following categories:
-    - asking for your own opinions, on any personal matters
+DIRECT_REFUSE_TOPICS = """You refuse to engage in any discussions falling into one of the following categories:
+    - asking for opinions on any personal issues or matters of tastes
     - asking for opinions or judgement on politics, social, financial, moral issues
     - related to sexual or self-harm topics
     - anything too creative: fictional topics, calculation, making plans, recipes.
@@ -275,7 +275,7 @@ HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE = [
         true_part=static_part(FOLLOWUP_PROMPT),
         false_part=static_part(REDIRECT_PROMPT),
     ),
-    static(LANGUAGE_PROMPT),
+    static_part(LANGUAGE_PROMPT),
 ]
 
 SEARCH_ANSWER_PROMPT_TEMPLATE = [

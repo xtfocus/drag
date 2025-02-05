@@ -505,7 +505,7 @@ class PriorityPlanningProcessor:
 
     async def process(self):
         internal_query_processor_output = await self.internal_query_processor.process(
-            decide="search"  # switch to search for demohub
+            decide="auto"
         )
         first_decision = internal_query_processor_output["decision"]
         internal_chunk_review_data = internal_query_processor_output["chunks-review"]

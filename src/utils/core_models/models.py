@@ -13,6 +13,11 @@ from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class SearchFilter(BaseModel):
+    dept_name: str
+    file_names: Optional[List[str]]
+
+
 class SearchType(str, Enum):
     INTERNAL = "internal"
     EXTERNAL = "external"
@@ -48,6 +53,8 @@ class InternalSearchConfig(BaseModel):
             ),
         ]
     ] = int(os.getenv("K_NEAREST_NEIGHBORS", 3))
+
+    search_filter: SearchFilter
 
 
 class ExternalSearchConfig(BaseModel):

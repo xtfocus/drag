@@ -1,7 +1,7 @@
 """
 File: search.py
 Author: tungnx23
-Description: This module provides functionality to perform similarity searches using Azure Cognitive Search. 
+Description: This module provides functionality to perform similarity searches using Azure Cognitive Search.
 It supports pure vector search, hybrid search, and hybrid search with semantic reranking.
 """
 
@@ -53,7 +53,14 @@ def azure_cognitive_search_wrapper(
         - Hybrid search: When both query and search_text are provided, it combines vector similarity with traditional text search.
         - Hybrid search + Semantic reranking: When search_text is provided along with semantic_args, the results are semantically reranked.
     """
+    filter_expression = None
+    if kwargs.get("search_filter"):
+        dept_name = kwargs["search_filter"].get("dept_name")
 
+        # Build the filter expression using 'search.in'
+        filter_expression = f"(dept_name eq '{dept_name}')"
+
+        logger.debug(filter_expression)
     if not vector_query:
         # Create a VectorizableTextQuery object for performing vector-based similarity search.
         vector_query = VectorizableTextQuery(
@@ -75,6 +82,7 @@ def azure_cognitive_search_wrapper(
             "metadata",
         ],
         top=top_n,
+        filter=filter_expression,
         **semantic_args.model_dump(),
     )
 

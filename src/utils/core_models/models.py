@@ -6,7 +6,7 @@ Description : Define Pydantic models for use in API routes and data validation
 
 import os
 from enum import Enum
-from typing import Annotated, Any, List, Literal, Optional, Union
+from typing import Annotated, Any, List, Optional, Union
 
 from azure.search.documents.models import (QueryAnswerType, QueryCaptionType,
                                            QueryType)
@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class SearchFilter(BaseModel):
     dept_name: str
-    file_names: Optional[List[str]]
 
 
 class SearchType(str, Enum):

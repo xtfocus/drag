@@ -1,7 +1,7 @@
 """
 File: search.py
 Author: tungnx23
-Description: This module provides functionality to perform similarity searches using Azure Cognitive Search. 
+Description: This module provides functionality to perform similarity searches using Azure Cognitive Search.
 It supports pure vector search, hybrid search, and hybrid search with semantic reranking.
 """
 
@@ -85,6 +85,7 @@ def azure_cognitive_search_wrapper(
             "chunk_id",
             "chunk",
             "title",
+            "semantic_name",
             "metadata",
         ],
         top=top_n,

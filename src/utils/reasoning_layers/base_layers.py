@@ -198,7 +198,9 @@ class InternalContextRetriever(ContextRetriever):
                 content=r["chunk"],
                 highlight=[i.text for i in r["@search.captions"]],
                 meta=SearchMetadata(
-                    title=r["title"],
+                    title=r[
+                        "semantic_name"
+                    ],  # Use the semantic name of the file rather than raw name
                     parent_id=r["parent_id"],
                     page_range=(json.loads(r["metadata"]))["page_range"],
                     reranker_score=r["@search.reranker_score"],

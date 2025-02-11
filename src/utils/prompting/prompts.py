@@ -96,7 +96,9 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "- If you are unsure, repeat it without changes\n"
         "- Preserve all context keywords in the original query\n"
         "- Preserve the  tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query\n"
-        "- Do not add excessive information to the message\n"
+        "- Do not add excessive information to the message"
+        "If user's query implies a search is needed, you will create a meaningful search query as well. Otherwise you don't have to create a search query"
+        "Produce output in JSON format as follow: {'standalone_query': ..., 'search_query': ...}"
     ),
     static_part(TIME_PROMPT),
     conditional_summary_introduce,
@@ -105,7 +107,7 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
     conditional_recent_messages_show,
     static_part(" Following is the latest message from the human:\n"),
     lambda data: f"{data.get('query')}\n",
-    static_part("Your standalone version: "),
+    static_part("Your output: "),
 ]
 
 

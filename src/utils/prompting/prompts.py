@@ -23,7 +23,10 @@ DIRECT_REFUSE_TOPICS = """You refuse to engage in any discussions falling into o
     - anything too creative: fictional topics, calculation, making plans, recipes.
     """
 
-REFUSE = """\nYou must gracefully tell user that you are "unable to help with the query due to insufficient knowledge base on the topic". Then ask user if there's something else you can assist them with."""
+REFUSE = (
+    """\nYou must gracefully tell user that you tried searching for answers from uploaded documents but unable to find a definitive answer. Then, you can either offer your own answer or offer user to assist with another question. """
+    + DIRECT_REFUSE_TOPICS
+)
 
 SUMMARIZE_ANSWER = "If your answer gets too long, provide a summary in the end."
 

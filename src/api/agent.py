@@ -5,6 +5,7 @@ Description : Define specified agents working in coordination to answer user's q
 """
 
 import asyncio
+import copy
 import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor
@@ -22,7 +23,6 @@ from src.utils.prompting.prompt_parts import create_prompt
 from src.utils.prompting.prompts import (AUGMENT_QUERY_PROMPT_TEMPLATE,
                                          DIRECT_ANSWER_PROMPT_TEMPLATE,
                                          HYBRID_SEARCH_ANSWER_PROMPT_TEMPLATE,
-                                         QUERY_ANALYZER_REPHRASER_TEMPLATE,
                                          QUERY_ANALYZER_TEMPLATE,
                                          REVIEW_CHUNKS_PROMPT_TEMPLATE,
                                          REVIEW_INTERNAL_CONTEXT_COMPLETENESS,
@@ -127,7 +127,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
     def _run_context_retriever(self):
         # Create a VectorizableTextQuery object for performing vector-based similarity search.
         vector_query = VectorizableTextQuery(
-            text=self.prompt_data.query,
+            text=self.prompt_data.search_query,
             fields="vector",
             exhaustive=True,
             k_nearest_neighbors=int(self.search_config["k"]),
@@ -138,21 +138,21 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             # Submit search tasks
             text_future = executor.submit(
                 self.context_retriever.run,
-                query=self.prompt_data.query,
+                query=self.prompt_data.search_query,
                 search_client=clients["text-azure-ai-search"],
                 vector_query=vector_query,
             )
 
             image_future = executor.submit(
                 self.context_retriever.run,
-                query=self.prompt_data.query,
+                query=self.prompt_data.search_query,
                 search_client=clients["image-azure-ai-search"],
                 vector_query=vector_query,
             )
 
             summary_future = executor.submit(
                 self.context_retriever.run,
-                query=self.prompt_data.query,
+                query=self.prompt_data.search_query,
                 search_client=clients["summary-azure-ai-search"],
                 vector_query=vector_query,
             )
@@ -230,6 +230,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
             ]
 
             if bool(image_chunks) or bool(text_chunks):  # If at least one isn't empty:
+
                 tasks.append(
                     asyncio.create_task(
                         self.context_reviewer.run_document(
@@ -268,7 +269,7 @@ class ExternalSingleQueryProcessor(BaseSingleQueryProcessor):
 
     def _run_context_retriever(self):
         return self.context_retriever.run(
-            self.prompt_data.query,
+            self.prompt_data.search_query,
         )
 
     def _update_prompt_data(self, context):
@@ -293,45 +294,6 @@ class Summarizer(BaseAgent):
         super().__init__(
             llm, prompt_data, template=SUMMARIZE_PROMPT_TEMPLATE, stream=stream
         )
-
-
-class QueryRephraserAnalyzer(BaseAgent):
-    """
-    Analyzes a rephrased user query to determine the best course of action (e.g., search or answer directly).
-
-    Args:
-        llm (LLM): The language model instance.
-        prompt_data (ConversationalRAGPromptData): Data used for analyzing the query.
-        stream (bool): Whether to stream the result. Defaults to False.
-
-    Returns:
-        str: Either 'search' or 'answer', based on the analysis.
-    """
-
-    def __init__(
-        self, llm: LLM, prompt_data: ConversationalRAGPromptData, stream: bool = False
-    ):
-        super().__init__(
-            llm, prompt_data, template=QUERY_ANALYZER_REPHRASER_TEMPLATE, stream=stream
-        )
-
-    async def run(self) -> str:
-        """
-        analyzer_output:
-            {
-              "rephrased_message": "<The rephrased user message with historical context incorporated>",
-              "message_analysis": {
-                "demand_search": <1 or 0>,
-                "require_internet": <1 or 0>,
-                "corporate_related": <1 or 0>,
-                "uncommon_topic": <1 or 0>,
-                "unsure": <1 or 0>
-              }
-            }
-        """
-        analyzer_output = await super().run(response_format={"type": "json_object"})
-        analyzer_output_parsed = json.loads(analyzer_output)
-        return "search" if any(analyzer_output_parsed.values()) else "answer"
 
 
 class QueryAnalyzer(BaseAgent):
@@ -539,6 +501,36 @@ class PriorityPlanningProcessor:
         }
 
 
+class RephraseAgent(BaseAgent):
+    """
+    Agent for rephrasing and creating search query
+
+    Returns:
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        prompt_data: ConversationalRAGPromptData,
+        stream: bool = False,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(
+            llm,
+            prompt_data,
+            template=AUGMENT_QUERY_PROMPT_TEMPLATE,
+            stream=stream,
+            *args,
+            **kwargs,
+        )
+
+    async def run(self) -> Dict:
+        """ """
+        output = await super().run(response_format={"type": "json_object"})
+        return json.loads(output)
+
+
 class ChatPriorityPlanner(PriorityPlanningProcessor):
     """
     Pipeline to handle priority QnA pattern in chat context
@@ -551,26 +543,32 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
 
         llm = LLM(client=client)
 
-        self.rephrase_agent = BaseAgent(
+        self.rephrase_agent = RephraseAgent(
             llm=llm,
             prompt_data=prompt_data,
-            template=AUGMENT_QUERY_PROMPT_TEMPLATE,
-            generate_config=generate_config,
+            generate_config=copy.deepcopy(generate_config),
             role="user",
         )
 
         self.response_generator = HybridSearchResponseGenerator(
             llm=llm,
             prompt_data=prompt_data,
-            generate_config=generate_config,
+            generate_config=copy.deepcopy(generate_config),
             stream=stream,
         )
 
         self.stream = stream
 
     async def run(self):
-        query = await self.rephrase_agent.run()
+        rephraser_output = await self.rephrase_agent.run()
+        query = rephraser_output.get("standalone_query")
+        search_query = rephraser_output.get("search_query")
+
+        if not search_query:
+            search_query = query
+
         self.prompt_data.update({"query": query})
+        self.prompt_data.update({"search_query": search_query})
 
         process_output = await self.process()
         decision = process_output["decision"]

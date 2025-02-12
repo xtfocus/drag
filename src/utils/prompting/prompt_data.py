@@ -1,7 +1,7 @@
 """
 File        : prompt_data.py
 Author      : tungnx23
-Description : Define BasePromptData and sub-classes to work with different prompt templates defined in prompts.py 
+Description : Define BasePromptData and sub-classes to work with different prompt templates defined in prompts.py
 """
 
 from typing import Any, Dict, List, Optional
@@ -55,6 +55,7 @@ class ConversationalRAGPromptData(BasePromptData):
     """
 
     query: str
+    search_query: Optional[str] = ""
     history_text: Optional[str] = ""
     current_summary: Optional[str] = None
     system_prompt: Optional[str] = None

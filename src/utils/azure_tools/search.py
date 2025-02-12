@@ -63,7 +63,7 @@ def azure_cognitive_search_wrapper(
 
         # Build the filter expression using 'search.in'
         filter_expression = (
-            f"(uploader eq '{user_name}') and search.in(title, '{file_names_str}'))"
+            f"(uploader eq '{user_name}') and search.in(title, '{file_names_str}')"
         )
 
         logger.debug(filter_expression)

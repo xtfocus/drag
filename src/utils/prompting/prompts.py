@@ -10,7 +10,7 @@ from src.utils.prompting.prompt_parts import conditional_part, static_part
 
 current_date = datetime.now().strftime("%Y-%m-%d")
 
-TIME_PROMPT = f"FYI, today is {current_date}. "
+TIME_PROMPT = f"FYI, today is {current_date}.\n"
 
 EMPTY_CHUNK_REVIEW = (
     "Current documents provide insufficient information to answer user's query.\n"
@@ -58,18 +58,18 @@ conditional_summary_introduce = conditional_part(
 )
 conditional_recent_messages_introduce = conditional_part(
     condition=condition_recent_messages_exist,
-    true_part="recent messages and ",
+    true_part="recent messages ",
     false_part="",
 )
 
 conditional_summary_show = conditional_part(
     condition=condition_current_summary_exist,
-    true_part=lambda data: f"Summary of the conversation so far: {data.get('current_summary')}\n",
+    true_part=lambda data: f". Summary of the conversation so far: {data.get('current_summary')}\n",
     false_part="",
 )
 conditional_recent_messages_show = conditional_part(
     condition=condition_recent_messages_exist,
-    true_part=lambda data: f"Recent messages:\n<RECENT MESSAGES START>\n{data.get('history_text')}\n<RECENT MESSAGES END>\n",
+    true_part=lambda data: f". Recent messages:\n<RECENT MESSAGES START>\n{data.get('history_text')}\n<RECENT MESSAGES END>\n",
     false_part="",
 )
 
@@ -96,8 +96,8 @@ AUGMENT_QUERY_PROMPT_TEMPLATE = [
         "- If you are unsure, repeat it without changes\n"
         "- Preserve all context keywords in the original query\n"
         "- Preserve the  tongue (i.e., national languages such as English, Spanish, Japanese, etc) of the original query\n"
-        "- Do not add excessive information to the message"
-        "If user's query implies a search is needed, you will create a meaningful search query as well. Otherwise you don't have to create a search query"
+        "- Do not add excessive information to the message\n"
+        "If you think a search is needed to help user with their query, create a meaningful search query. Make sure the search query addresses all keywords and aspects of the question.\n"
         "Produce output in JSON format as follow: {'standalone_query': ..., 'search_query': ...}"
     ),
     static_part(TIME_PROMPT),

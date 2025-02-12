@@ -564,6 +564,9 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
         query = rephraser_output.get("standalone_query")
         search_query = rephraser_output.get("search_query")
 
+        if not search_query:
+            search_query = query
+
         self.prompt_data.update({"query": query})
         self.prompt_data.update({"search_query": search_query})
 

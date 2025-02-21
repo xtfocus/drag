@@ -14,7 +14,7 @@ from src.utils.core_models.models import ChatRequest, SummaryRequest
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
 
-from .agent import ChatPriorityPlanner, ResponseGenerator, Summarizer
+from .agent import ModeRouting, ResponseGenerator, Summarizer
 from .globals import clients, history_config
 
 # from .system_prompt import get_kimi_system_prompt
@@ -111,13 +111,14 @@ async def chat(chat_request: ChatRequest) -> dict:
             query=user_input.content,
             history=history,
             current_summary=chat_request.summary.content,
-            # system_prompt=chat_request.system_prompt,
             system_prompt=kimi_system_promtp,
         )
 
         logger.info(f"Search config = {search_config}")
 
-        planner = ChatPriorityPlanner(
+        planner_class = ModeRouting(chat_request.search_config.planning)
+
+        planner = planner_class(
             client=clients["chat-completion"],
             stream=False,
             generate_config=generate_config,
@@ -174,7 +175,9 @@ async def stream(chat_request: ChatRequest) -> StreamingResponse:
             system_prompt=kimi_system_promtp,
         )
 
-        planner = ChatPriorityPlanner(
+        planner_class = ModeRouting(chat_request.search_config.planning)
+
+        planner = planner_class(
             client=clients["chat-completion"],
             stream=True,
             generate_config=generate_config,

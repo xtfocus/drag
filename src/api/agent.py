@@ -16,6 +16,7 @@ from loguru import logger
 
 from src.api.multimodal_document_context_reviewer import \
     DocumentContextReviewer
+from src.utils.core_models.models import PlanningStrategy
 from src.utils.language_models.llms import LLM
 from src.utils.prompting.chunks import Chunks
 from src.utils.prompting.prompt_data import ConversationalRAGPromptData
@@ -605,3 +606,10 @@ class ChatPriorityPlanner(PriorityPlanningProcessor):
             )
 
         return {"response": response, "chunks": combined_chunks}
+
+
+def ModeRouting(planning: str):
+    if planning == PlanningStrategy.CAREFUL:
+        return ChatPriorityPlanner
+    else:
+        return ChatPriorityPlanner

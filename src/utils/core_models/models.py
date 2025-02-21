@@ -24,9 +24,8 @@ class SearchType(str, Enum):
 
 
 class PlanningStrategy(str, Enum):
-    AUTO = "auto"
-    PRIORITY = "priority"
-    GREEDY = "greedy"
+    RAPID = "rapid"
+    CAREFUL = "careful"
 
 
 class InternalSearchConfig(BaseModel):
@@ -79,10 +78,12 @@ class SearchConfig(BaseModel):
         description="Configuration for internal search.",
     )
     external: Optional[ExternalSearchConfig] = None
-    planning: Annotated[
-        PlanningStrategy,
-        Field(description="The planning strategy for search operations."),
-    ] = PlanningStrategy.PRIORITY
+    planning: Optional[
+        Annotated[
+            PlanningStrategy,
+            Field(description="The planning strategy for search operations."),
+        ]
+    ] = PlanningStrategy.RAPID
 
     @model_validator(mode="before")
     def validate_search_types(cls, values):

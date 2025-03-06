@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Literal
 
 from azure.search.documents.models import VectorizableTextQuery
 from loguru import logger
+from rich import print as pprint
 
 from src.api.multimodal_document_context_reviewer import \
     DocumentContextReviewer
@@ -247,7 +248,7 @@ class InternalSingleQueryProcessor(BaseSingleQueryProcessor):
 
         chunk_review = []
         for c in contexts:
-            logger.info(c.chunk_review)
+            pprint(c.chunk_review)
             chunk_review += c.chunk_review
 
         dummy_context = Chunks(chunks=[])

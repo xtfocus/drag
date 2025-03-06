@@ -1,7 +1,7 @@
 PHONY: build push deploy-create deploy-update clean
 # Variables
 DOCKER_IMAGE = tung-test-chat
-DOCKER_TAG=latest
+DOCKER_TAG=v.1.0.8
 
 DEV_ENV_FILE = .env.dev
 PROD_ENV_FILE = .env.prod

@@ -95,12 +95,12 @@ class Chunks(SearchResults):
                 c["meta"] = self.chunks[true_index].get("meta")
 
             # Drop irrelevant chunks
-            self.chunk_review = [c for c in result if c["review_score"] > 0]
+            self.chunk_review += [c for c in result if c["review_score"] > 0]
             return
         except Exception as e:
             error = f"LLM returned index out of range for list of length {len(self.chunks)}.Review result: {chunk_review_list}"
             logger.error(error)
-            self.chunk_review = []
+            # self.chunk_review = []
             return
 
     def friendly_chunk_review_view(self) -> Any:

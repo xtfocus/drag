@@ -222,6 +222,10 @@ class DocumentContextReviewer(BaseAgent):
             messages=messages, response_format={"type": "json_object"}
         )
 
+        logger.info(
+            f"Finished review for {len(text_chunk_batch)} texts and {len(image_chunk_batch)} images"
+        )
+
         return chunk_review_str
 
     async def run_document(
